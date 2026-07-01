@@ -1,5 +1,6 @@
 import { Link, Route, Routes } from 'react-router-dom'
 import CapturePage from './pages/CapturePage.jsx'
+import EditPage from './pages/EditPage.jsx'
 
 export default function App() {
   return (
@@ -9,6 +10,7 @@ export default function App() {
       </nav>
       <Routes>
         <Route path="/" element={<CapturePage />} />
+        <Route path="/edit" element={<EditPage />} />
       </Routes>
     </div>
   )
