@@ -1,8 +1,9 @@
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 
 from .. import ocr
+from ..auth import verify_password
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_password)])
 
 
 @router.post("/ocr")

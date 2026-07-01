@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import crud, excel, pdf, photos, schemas
+from ..auth import verify_password
 from ..database import get_db
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_password)])
 logger = logging.getLogger(__name__)
 
 
