@@ -1,9 +1,26 @@
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
+function authHeaders() {
+  return { 'X-App-Password': sessionStorage.getItem('appPassword') || '' }
+}
+
+function handleUnauthorized(response) {
+  if (response.status === 401) {
+    sessionStorage.removeItem('appPassword')
+    window.location.reload()
+    throw new Error('인증이 만료되었습니다')
+  }
+}
+
 export async function runOcr(imageFile) {
   const formData = new FormData()
   formData.append('file', imageFile)
-  const response = await fetch(`${API_BASE}/ocr`, { method: 'POST', body: formData })
+  const response = await fetch(`${API_BASE}/ocr`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  })
+  handleUnauthorized(response)
   if (!response.ok) throw new Error('OCR 요청 실패')
   return response.json()
 }
@@ -16,20 +33,31 @@ export async function createInvoice(fields, photoFile) {
     }
   })
   if (photoFile) formData.append('photo', photoFile)
-  const response = await fetch(`${API_BASE}/invoices`, { method: 'POST', body: formData })
+  const response = await fetch(`${API_BASE}/invoices`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  })
+  handleUnauthorized(response)
   if (!response.ok) throw new Error('저장 실패')
   return response.json()
 }
 
 export async function searchInvoices(params) {
   const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value)).toString()
-  const response = await fetch(`${API_BASE}/invoices?${query}`)
+  const response = await fetch(`${API_BASE}/invoices?${query}`, {
+    headers: authHeaders(),
+  })
+  handleUnauthorized(response)
   if (!response.ok) throw new Error('검색 실패')
   return response.json()
 }
 
 export async function getInvoice(id) {
-  const response = await fetch(`${API_BASE}/invoices/${id}`)
+  const response = await fetch(`${API_BASE}/invoices/${id}`, {
+    headers: authHeaders(),
+  })
+  handleUnauthorized(response)
   if (!response.ok) throw new Error('조회 실패')
   return response.json()
 }
@@ -37,9 +65,10 @@ export async function getInvoice(id) {
 export async function updateInvoice(id, fields) {
   const response = await fetch(`${API_BASE}/invoices/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(fields),
   })
+  handleUnauthorized(response)
   if (!response.ok) throw new Error('수정 실패')
   return response.json()
 }
