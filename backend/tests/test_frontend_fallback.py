@@ -1,32 +1,47 @@
-import importlib
-
 import pytest
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from app import main as main_module
+from app.main import _register_frontend
 
 FAKE_INDEX_HTML = "<html><body>fake spa shell</body></html>"
 
 
 @pytest.fixture
-def frontend_client(tmp_path, monkeypatch):
-    """Reload app.main with FRONTEND_DIST pointed at a temp dir containing a fake index.html."""
+def frontend_client(tmp_path):
+    """Build a throwaway FastAPI app with _register_frontend pointed at a temp
+    dist dir containing a fake index.html, plus a couple of stand-in routes to
+    exercise the matched-vs-unmatched route distinction.
+
+    This avoids importlib.reload()/monkeypatch trickery on the real app.main
+    module -- reloading the module re-executes its module-level
+    `FRONTEND_DIST = Path(...)` assignment, which overwrites any monkeypatched
+    value before the mount/handler registration runs, so the previous version
+    of this fixture was silently testing against whatever frontend/dist
+    happens to really exist on disk, not the fake one.
+    """
     fake_dist = tmp_path / "dist"
     fake_dist.mkdir()
     (fake_dist / "index.html").write_text(FAKE_INDEX_HTML, encoding="utf-8")
 
-    monkeypatch.setattr(main_module, "FRONTEND_DIST", fake_dist, raising=False)
+    test_app = FastAPI()
 
-    reloaded = importlib.reload(main_module)
-    # Force the module's FRONTEND_DIST (recomputed on reload) to the fake dir too,
-    # since reload re-executes the module-level Path(...) assignment.
-    monkeypatch.setattr(reloaded, "FRONTEND_DIST", fake_dist, raising=False)
+    @test_app.get("/health")
+    def health():
+        return {"status": "ok"}
 
-    client = TestClient(reloaded.app)
-    yield client
+    @test_app.get("/invoices")
+    def list_invoices():
+        return []
 
-    # Reload again afterwards to restore the module to its normal state for other tests.
-    importlib.reload(main_module)
+    @test_app.get("/invoices/{invoice_id}")
+    def get_invoice(invoice_id: int):
+        # A real, matched route whose own 404 must NOT be masked by the SPA fallback.
+        raise HTTPException(status_code=404, detail="invoice not found")
+
+    _register_frontend(test_app, fake_dist)
+
+    return TestClient(test_app)
 
 
 def test_unmatched_spa_route_returns_index_html(frontend_client):
@@ -63,3 +78,21 @@ def test_health_route_still_works(frontend_client):
     response = frontend_client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_register_frontend_is_noop_when_dist_missing(tmp_path):
+    missing_dist = tmp_path / "does-not-exist"
+    test_app = FastAPI()
+
+    @test_app.get("/health")
+    def health():
+        return {"status": "ok"}
+
+    _register_frontend(test_app, missing_dist)
+
+    client = TestClient(test_app)
+    # No frontend mounted and no custom 404 handler registered, so an unmatched
+    # route falls through to FastAPI's default JSON 404 rather than index.html.
+    response = client.get("/search")
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("application/json")

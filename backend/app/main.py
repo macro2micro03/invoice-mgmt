@@ -33,8 +33,20 @@ def health():
 app.mount("/storage", StaticFiles(directory=str(config.STORAGE_DIR)), name="storage")
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
-if FRONTEND_DIST.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend")
+
+
+def _register_frontend(app: FastAPI, frontend_dist: Path) -> None:
+    """Mount the built SPA (if present) and register the 404 fallback handler.
+
+    Extracted into a function (rather than inlined at module scope) so tests can
+    exercise the mount/fallback behavior against a throwaway FastAPI app and a
+    temp directory, without depending on whether frontend/dist actually exists
+    on disk in the checkout running the tests.
+    """
+    if not frontend_dist.exists():
+        return
+
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 
     # React Router client-side routes (e.g. /search, /invoices/5) have no matching
     # file on disk, so StaticFiles above 404s on them. Fall back to index.html, but
@@ -45,7 +57,10 @@ if FRONTEND_DIST.exists():
     async def spa_fallback(request, exc):
         route_matched = request.scope.get("route") is not None
         if request.method == "GET" and not route_matched:
-            return FileResponse(str(FRONTEND_DIST / "index.html"))
+            return FileResponse(str(frontend_dist / "index.html"))
         # A real route matched (e.g. GET /invoices/{id} for a missing invoice) --
         # preserve its own 404 response instead of masking it with the SPA shell.
         return await http_exception_handler(request, exc)
+
+
+_register_frontend(app, FRONTEND_DIST)
