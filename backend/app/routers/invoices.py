@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from typing import Optional
 
@@ -8,6 +9,7 @@ from .. import crud, excel, pdf, photos, schemas
 from ..database import get_db
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/invoices", response_model=schemas.InvoiceOut)
@@ -48,19 +50,19 @@ async def create_invoice(
             invoice.photo_path = photo_path
             db.commit()
             db.refresh(invoice)
-        except Exception as error:
-            print(f"[invoices] 사진 저장 실패: {error}")
+        except Exception:
+            logger.exception("사진 저장 실패")
 
     try:
         excel.append_invoice(invoice)
-    except Exception as error:
-        print(f"[invoices] 엑셀 저장 실패: {error}")
+    except Exception:
+        logger.exception("엑셀 저장 실패")
 
     if pdf.is_major_material(invoice.material_type):
         try:
             pdf.generate_pdf(invoice)
-        except Exception as error:
-            print(f"[invoices] PDF 생성 실패: {error}")
+        except Exception:
+            logger.exception("PDF 생성 실패")
 
     return invoice
 
