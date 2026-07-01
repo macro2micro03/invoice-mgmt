@@ -53,3 +53,33 @@ def test_append_invoice_separates_sheets_by_material_type():
     excel.append_invoice(make_invoice(id=2, material_type="시멘트"))
     workbook = load_workbook(config.EXCEL_PATH)
     assert set(workbook.sheetnames) == {"철근", "시멘트"}
+
+
+def test_append_invoice_handles_none_optional_fields():
+    if config.EXCEL_PATH.exists():
+        config.EXCEL_PATH.unlink()
+    invoice = make_invoice(
+        id=1,
+        vendor=None,
+        delivery_date=None,
+        quantity=None,
+        note=None
+    )
+    excel.append_invoice(invoice)
+    workbook = load_workbook(config.EXCEL_PATH)
+    sheet = workbook["철근"]
+    assert sheet.max_row == 2  # header + 1 data row
+
+    # Verify empty cells for None fields
+    row = 2
+    assert sheet.cell(row=row, column=2).value is None  # vendor
+    assert sheet.cell(row=row, column=3).value is None  # delivery_date (empty string becomes None in openpyxl)
+    assert sheet.cell(row=row, column=9).value is None  # quantity
+    assert sheet.cell(row=row, column=11).value is None  # note
+
+    # Verify non-None fields are correct
+    assert sheet.cell(row=row, column=1).value == 1  # id
+    assert sheet.cell(row=row, column=6).value == "철근 D10"  # item_name
+    assert sheet.cell(row=row, column=7).value == "D10"  # spec
+    assert sheet.cell(row=row, column=8).value == "TON"  # unit
+    assert sheet.cell(row=row, column=10).value == 10500  # weight
