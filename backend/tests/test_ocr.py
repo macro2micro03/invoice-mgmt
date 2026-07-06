@@ -11,6 +11,37 @@ def test_extract_text_from_elements_response():
     assert ocr.extract_text(raw) == "line1\nline2"
 
 
+def test_extract_text_from_real_upstage_document_parse_response():
+    # 실제 Upstage document-parse API는 content.text/elements[].content.text가
+    # 항상 빈 문자열이고, 실제 내용은 content.html / elements[].content.html에
+    # <br> 태그로 줄바꿈된 HTML로 들어있다.
+    raw = {
+        "content": {
+            "html": "<h1 id='0'>거래명세서</h1>\n<p id='1'>거래처: 대한제강<br>송장번호: INV-001</p>",
+            "markdown": "",
+            "text": "",
+        },
+        "elements": [
+            {"content": {"html": "<h1 id='0'>거래명세서</h1>", "markdown": "", "text": ""}},
+            {
+                "content": {
+                    "html": "<p id='1'>거래처: 대한제강<br>송장번호: INV-001</p>",
+                    "markdown": "",
+                    "text": "",
+                }
+            },
+        ],
+    }
+    text = ocr.extract_text(raw)
+    assert "거래처: 대한제강" in text
+    assert "송장번호: INV-001" in text
+
+
+def test_extract_text_html_entities_are_unescaped():
+    raw = {"content": {"html": "<p>규격: 10&amp;20</p>", "text": ""}}
+    assert ocr.extract_text(raw) == "규격: 10&20"
+
+
 def test_normalize_fields_extracts_labeled_values():
     text = (
         "거래처: 대한제강\n"

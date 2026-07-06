@@ -1,3 +1,4 @@
+import html
 import re
 
 import requests
@@ -34,16 +35,35 @@ def call_upstage_ocr(image_bytes: bytes, filename: str = "invoice.jpg") -> dict:
     return response.json()
 
 
-def extract_text(raw_response: dict) -> str:
-    text = raw_response.get("text", "")
+def _content_to_text(content: dict) -> str:
+    """Upstage document-parse는 content.text가 빈 문자열이고 실제 내용은
+    content.html에 <br> 태그로 줄바꿈된 HTML로 들어있는 경우가 많다."""
+    text = content.get("text", "")
     if text:
         return text
+    html_content = content.get("html", "")
+    if not html_content:
+        return ""
+    plain = re.sub(r"<br\s*/?>", "\n", html_content)
+    plain = re.sub(r"<[^>]+>", "", plain)
+    return html.unescape(plain).strip()
+
+
+def extract_text(raw_response: dict) -> str:
+    flat_text = raw_response.get("text", "")
+    if flat_text:
+        return flat_text
+    top_level_text = _content_to_text(raw_response.get("content", {}))
+    if top_level_text:
+        return top_level_text
     elements = raw_response.get("elements", [])
     lines = []
     for element in elements:
         content = element.get("content", {})
-        if isinstance(content, dict) and content.get("text"):
-            lines.append(content["text"])
+        if isinstance(content, dict):
+            element_text = _content_to_text(content)
+            if element_text:
+                lines.append(element_text)
     return "\n".join(lines)
 
 
