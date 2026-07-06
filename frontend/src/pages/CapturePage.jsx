@@ -26,7 +26,7 @@ export default function CapturePage() {
   return (
     <div style={{ padding: 16 }}>
       <h1>송장 촬영</h1>
-      <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} />
+      <input type="file" accept="image/*,application/pdf" capture="environment" onChange={handleFileChange} />
       {loading && <p>인식 중...</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
