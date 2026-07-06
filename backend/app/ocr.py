@@ -84,4 +84,11 @@ def normalize_fields(raw_text: str) -> dict:
                     if value and value != label:
                         result[field] = value
                         break
+
+    if not result["material_type"] and result["item_name"]:
+        for material in config.SUPPORTED_MATERIALS:
+            if material in result["item_name"]:
+                result["material_type"] = material
+                break
+
     return result

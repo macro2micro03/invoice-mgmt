@@ -68,6 +68,26 @@ def test_normalize_fields_missing_label_returns_empty_strings():
         assert fields[field] == ""
 
 
+def test_normalize_fields_infers_material_type_from_item_name():
+    # 실제 송장에는 "자재종류"라는 라벨이 따로 없는 경우가 많다.
+    # 품명에 지원 자재 목록 중 하나가 포함되어 있으면 그것으로 채운다.
+    text = "품명: 철근 D10\n단위: TON\n"
+    fields = ocr.normalize_fields(text)
+    assert fields["material_type"] == "철근"
+
+
+def test_normalize_fields_prefers_explicit_material_type_label_over_inference():
+    text = "자재종류: 시멘트\n품명: 철근 D10\n"
+    fields = ocr.normalize_fields(text)
+    assert fields["material_type"] == "시멘트"
+
+
+def test_normalize_fields_leaves_material_type_empty_when_item_name_has_no_known_material():
+    text = "품명: 알 수 없는 자재\n"
+    fields = ocr.normalize_fields(text)
+    assert fields["material_type"] == ""
+
+
 def test_call_upstage_ocr_sends_auth_header(monkeypatch):
     captured = {}
 

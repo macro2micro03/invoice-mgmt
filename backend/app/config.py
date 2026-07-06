@@ -11,6 +11,18 @@ UPSTAGE_API_KEY = os.environ.get("UPSTAGE_API_KEY", "")
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 UPSTAGE_OCR_URL = "https://api.upstage.ai/v1/document-ai/document-parse"
 MAJOR_MATERIALS = {"철근", "철골", "레미콘", "시멘트"}
+SUPPORTED_MATERIALS = [
+    "철근",
+    "철골",
+    "레미콘",
+    "시멘트",
+    "골재",
+    "거푸집",
+    "단열재",
+    "배관",
+    "전기자재",
+    "마감재",
+]
 
 for directory in (PHOTOS_DIR, PDF_DIR):
     directory.mkdir(parents=True, exist_ok=True)
