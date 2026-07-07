@@ -52,14 +52,26 @@ async def create_material_inspection_report(
         vendor=report_data["vendor"],
     )
 
+    warnings: List[str] = []
+    if report_data["skipped_pages"]:
+        warnings.append(
+            f"{len(report_data['skipped_pages'])}개 페이지에서 자재 내역 표를 찾지 못해 제외했습니다"
+        )
+    if not report_data["vendor"]:
+        warnings.append("거래처(반입업체명)를 자동으로 인식하지 못했습니다 — 문서에서 직접 확인해주세요")
+
     filename = f"{document_number}.docx"
     encoded_filename = quote(filename)
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"report.docx\"; filename*=UTF-8''{encoded_filename}"
+        )
+    }
+    if warnings:
+        headers["X-Report-Warnings"] = quote(" | ".join(warnings))
+
     return Response(
         content=docx_bytes,
         media_type=DOCX_MEDIA_TYPE,
-        headers={
-            "Content-Disposition": (
-                f"attachment; filename=\"report.docx\"; filename*=UTF-8''{encoded_filename}"
-            )
-        },
+        headers=headers,
     )

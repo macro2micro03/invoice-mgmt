@@ -91,5 +91,8 @@ export async function createMaterialInspectionReport(fields, files) {
     const body = await response.json().catch(() => ({}))
     throw new Error(body.detail || '보고서 생성에 실패했습니다')
   }
-  return response.blob()
+  const blob = await response.blob()
+  const encodedWarnings = response.headers.get('X-Report-Warnings')
+  const warnings = encodedWarnings ? decodeURIComponent(encodedWarnings) : null
+  return { blob, warnings }
 }

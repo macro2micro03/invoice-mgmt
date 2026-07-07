@@ -9,6 +9,7 @@ export default function ReportPage() {
   const [receiver, setReceiver] = useState('')
   const [files, setFiles] = useState([])
   const [error, setError] = useState('')
+  const [warning, setWarning] = useState('')
   const [generating, setGenerating] = useState(false)
 
   function handleFilesChange(event) {
@@ -18,9 +19,10 @@ export default function ReportPage() {
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
+    setWarning('')
     setGenerating(true)
     try {
-      const blob = await createMaterialInspectionReport(
+      const { blob, warnings } = await createMaterialInspectionReport(
         {
           project_name: projectName,
           work_type: workType,
@@ -36,6 +38,9 @@ export default function ReportPage() {
       link.download = `자재검수요청서-${materialType || '자재'}.docx`
       link.click()
       URL.revokeObjectURL(url)
+      if (warnings) {
+        setWarning(warnings)
+      }
     } catch (err) {
       setError(err.message || '보고서 생성에 실패했습니다')
     } finally {
@@ -93,6 +98,7 @@ export default function ReportPage() {
         </button>
       </form>
       {error && <p style={{ color: 'red' }}>{error}</p>}
+      {warning && <p style={{ color: '#b8860b' }}>{warning}</p>}
     </div>
   )
 }

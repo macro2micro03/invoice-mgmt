@@ -30,6 +30,30 @@ def _cover_response(spec_weight_pairs):
     }
 
 
+def _cover_response_no_vendor(spec_weight_pairs):
+    material_rows = [[spec, "0.560", str(kg), str(kg), "동국제강"] for spec, kg in spec_weight_pairs]
+    total_kg = sum(kg for _, kg in spec_weight_pairs)
+    table_html = _table_html(
+        ["직경", "단위중량(kg/m)", "발송중량(kg)", "할증중량(kg)", "비고"],
+        material_rows + [["총 합", "", str(total_kg), "", ""]],
+    )
+    return {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
+        ]
+    }
+
+
+def _cover_response_no_table():
+    return {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>가짜상사(주)</h1>", "text": ""}},
+        ]
+    }
+
+
 def _form_fields():
     return {
         "project_name": "테스트현장 신축공사",
@@ -141,3 +165,67 @@ def test_create_report_content_disposition_korean_filename(monkeypatch):
         # material_type is "철근" from _form_fields(), report_number starts at 1
         assert decoded_filename.startswith("건축(자검)-철근-")
         assert decoded_filename.endswith("호.docx")
+
+
+def test_create_report_no_warning_header_when_everything_parses_cleanly(monkeypatch):
+    monkeypatch.setattr(
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 1000)])
+    )
+
+    response = client.post(
+        "/reports/material-inspection",
+        data=_form_fields(),
+        files={"files": ("cover.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    assert "x-report-warnings" not in response.headers
+
+
+def test_create_report_warns_when_vendor_not_recognized(monkeypatch):
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_ocr",
+        lambda image_bytes, filename="x": _cover_response_no_vendor([("SHD10", 1000)]),
+    )
+
+    response = client.post(
+        "/reports/material-inspection",
+        data=_form_fields(),
+        files={"files": ("cover.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+
+    warnings_header = response.headers.get("x-report-warnings")
+    assert warnings_header is not None
+    decoded = unquote(warnings_header)
+    assert "거래처" in decoded
+
+
+def test_create_report_warns_when_pages_skipped(monkeypatch):
+    responses = [
+        _cover_response([("SHD10", 1000)]),
+        _cover_response_no_table(),
+    ]
+    call_count = {"n": 0}
+
+    def fake_ocr(image_bytes, filename="x"):
+        result = responses[call_count["n"]]
+        call_count["n"] += 1
+        return result
+
+    monkeypatch.setattr(ocr_module, "call_upstage_ocr", fake_ocr)
+
+    response = client.post(
+        "/reports/material-inspection",
+        data=_form_fields(),
+        files=[
+            ("files", ("cover1.jpg", b"fake-1", "image/jpeg")),
+            ("files", ("cover2.jpg", b"fake-2", "image/jpeg")),
+        ],
+    )
+    assert response.status_code == 200
+
+    warnings_header = response.headers.get("x-report-warnings")
+    assert warnings_header is not None
+    decoded = unquote(warnings_header)
+    assert "1개 페이지" in decoded
