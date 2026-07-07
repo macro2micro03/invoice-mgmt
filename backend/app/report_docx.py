@@ -2,8 +2,35 @@ from datetime import date
 from io import BytesIO
 
 from docx import Document
+from docx.oxml.ns import qn
 
 MATERIAL_HEADERS = ["품명", "규격", "단위", "수량", "반입업체명/제조회사명", "검수결과", "검수자"]
+KOREAN_FONT_NAME = "맑은 고딕"
+
+
+def _set_run_korean_font(run) -> None:
+    """python-docx만으로는 동아시아(eastAsia) 폰트가 지정되지 않아, 일부 뷰어
+    (워드가 아닌 프로그램 등)에서 한글이 네모(□) 로 보이는 문제가 있다.
+    ascii/eastAsia 폰트를 모두 명시해서 어떤 뷰어에서도 한글이 정상 표시되게 한다."""
+    run.font.name = KOREAN_FONT_NAME
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), KOREAN_FONT_NAME)
+
+
+def _apply_korean_font(document) -> None:
+    normal_style = document.styles["Normal"]
+    normal_style.font.name = KOREAN_FONT_NAME
+    normal_style.element.rPr.rFonts.set(qn("w:eastAsia"), KOREAN_FONT_NAME)
+
+    for paragraph in document.paragraphs:
+        for run in paragraph.runs:
+            _set_run_korean_font(run)
+
+    for table in document.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        _set_run_korean_font(run)
 
 
 def generate_material_inspection_docx(
@@ -78,6 +105,8 @@ def generate_material_inspection_docx(
     doc.add_paragraph("미승인 사유: ")
     doc.add_paragraph("처리 방안: ")
     doc.add_paragraph("붙임: 1. 반입송장 2. 사진대지")
+
+    _apply_korean_font(doc)
 
     buffer = BytesIO()
     doc.save(buffer)
