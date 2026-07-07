@@ -1,3 +1,5 @@
+from urllib.parse import unquote
+
 from fastapi.testclient import TestClient
 
 from app import ocr as ocr_module
@@ -107,3 +109,35 @@ def test_create_report_is_protected_by_shared_password(monkeypatch):
         files={"files": ("cover.jpg", b"fake-image-bytes", "image/jpeg")},
     )
     assert response.status_code == 401
+
+
+def test_create_report_content_disposition_korean_filename(monkeypatch):
+    monkeypatch.setattr(
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 1000)])
+    )
+
+    response = client.post(
+        "/reports/material-inspection",
+        data=_form_fields(),
+        files={"files": ("cover.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+
+    content_disposition = response.headers.get("content-disposition", "")
+
+    # Assert RFC 5987 form is present for Korean text support
+    assert "filename*=UTF-8''" in content_disposition
+
+    # Assert ASCII filename fallback is present for legacy client compatibility
+    assert 'filename="report.docx"' in content_disposition
+
+    # Extract and decode the RFC 5987 encoded portion
+    # Format: attachment; filename="report.docx"; filename*=UTF-8''<percent-encoded>
+    if "filename*=UTF-8''" in content_disposition:
+        encoded_part = content_disposition.split("filename*=UTF-8''")[1]
+        decoded_filename = unquote(encoded_part)
+
+        # Verify the decoded filename matches expected format with Korean text
+        # material_type is "철근" from _form_fields(), report_number starts at 1
+        assert decoded_filename.startswith("건축(자검)-철근-")
+        assert decoded_filename.endswith("호.docx")
