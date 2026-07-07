@@ -22,3 +22,10 @@ class Invoice(Base):
     photo_path = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class ReportSequence(Base):
+    __tablename__ = "report_sequences"
+
+    id = Column(Integer, primary_key=True)
+    last_number = Column(Integer, nullable=False, default=0)

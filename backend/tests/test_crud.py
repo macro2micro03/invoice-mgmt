@@ -51,3 +51,12 @@ def test_update_invoice(db_session):
 def test_update_invoice_missing_returns_none(db_session):
     update_data = make_invoice_data()
     assert crud.update_invoice(db_session, 999999, schemas.InvoiceUpdate(**update_data.model_dump())) is None
+
+
+def test_get_next_report_number_starts_at_one_and_increments(db_session):
+    first = crud.get_next_report_number(db_session)
+    second = crud.get_next_report_number(db_session)
+    third = crud.get_next_report_number(db_session)
+    assert first == 1
+    assert second == 2
+    assert third == 3

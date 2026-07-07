@@ -46,3 +46,14 @@ def update_invoice(db: Session, invoice_id: int, data: schemas.InvoiceUpdate) ->
     db.commit()
     db.refresh(invoice)
     return invoice
+
+
+def get_next_report_number(db: Session) -> int:
+    sequence = db.query(models.ReportSequence).filter(models.ReportSequence.id == 1).first()
+    if sequence is None:
+        sequence = models.ReportSequence(id=1, last_number=0)
+        db.add(sequence)
+    sequence.last_number += 1
+    db.commit()
+    db.refresh(sequence)
+    return sequence.last_number
