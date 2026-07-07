@@ -58,9 +58,11 @@ def extract_material_rows(raw_response: dict, page: int) -> list[dict]:
 
     result = []
     for row in rows[1:]:
-        if not row or not row[0].strip() or "총" in row[0]:
+        if spec_idx >= len(row):
             continue
-        spec = row[0].strip()
+        if not row or not row[spec_idx].strip() or "총" in row[spec_idx]:
+            continue
+        spec = row[spec_idx].strip()
         if weight_idx >= len(row):
             continue
         weight_text = row[weight_idx].strip().replace(",", "")
