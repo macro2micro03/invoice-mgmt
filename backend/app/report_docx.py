@@ -72,9 +72,9 @@ def generate_material_inspection_docx(
 
     doc.add_paragraph("")
     doc.add_paragraph(f"위 자재에 대하여 검수를 요청합니다.")
-    doc.add_paragraph(f"검수 요청일: {today}    현장 대리인: {sender}")
+    doc.add_paragraph(f"검수 요청일: {today}    현장 대리인: {sender} (인)")
     doc.add_paragraph(f"위 자재 검수결과를 통보합니다.")
-    doc.add_paragraph(f"통보 일자: {today}    총괄 관리원: {receiver}")
+    doc.add_paragraph(f"통보 일자: {today}    총괄 관리원: {receiver} (인)")
     doc.add_paragraph("미승인 사유: ")
     doc.add_paragraph("처리 방안: ")
     doc.add_paragraph("붙임: 1. 반입송장 2. 사진대지")
