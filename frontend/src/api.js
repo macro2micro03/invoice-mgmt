@@ -72,3 +72,24 @@ export async function updateInvoice(id, fields) {
   if (!response.ok) throw new Error('수정 실패')
   return response.json()
 }
+
+export async function createMaterialInspectionReport(fields, files) {
+  const formData = new FormData()
+  Object.entries(fields).forEach(([key, value]) => {
+    formData.append(key, value)
+  })
+  files.forEach((file) => {
+    formData.append('files', file)
+  })
+  const response = await fetch(`${API_BASE}/reports/material-inspection`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  })
+  handleUnauthorized(response)
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(body.detail || '보고서 생성에 실패했습니다')
+  }
+  return response.blob()
+}
