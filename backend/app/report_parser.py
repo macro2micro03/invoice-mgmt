@@ -7,6 +7,14 @@ COVER_TITLE = "송장별 총괄 내역서"
 
 TOTAL_ROW_LABELS = {"총합", "총계", "합계"}
 
+# Upstage의 category 분류(heading1 vs paragraph)는 동일한 문서 안에서도
+# 페이지마다 비결정적으로 갈리는 경우가 실제로 확인되었다(실제 반입송장
+# 21페이지 중 갑지 제목과 회사명이 어떤 페이지에서는 heading1로, 다른
+# 페이지에서는 paragraph로 분류됨). 그래서 제목/회사명 판별 모두 heading1
+# 하나만 신뢰하지 않고 paragraph도 함께 확인한다.
+TITLE_CATEGORIES = {"heading1", "paragraph"}
+COMPANY_NAME_MARKERS = ("(주)", "㈜")
+
 
 def _collapse_spaces(text: str) -> str:
     return re.sub(r"\s+", "", text)
@@ -24,7 +32,7 @@ def _parse_table_rows(table_html: str) -> list[list[str]]:
 def find_cover_pages(raw_response: dict) -> list[int]:
     pages = set()
     for element in raw_response.get("elements", []):
-        if element.get("category") != "heading1":
+        if element.get("category") not in TITLE_CATEGORIES:
             continue
         text = ocr._content_to_text(element.get("content", {}))
         if text.strip() == COVER_TITLE:
@@ -82,12 +90,21 @@ def extract_material_rows(raw_response: dict, page: int) -> list[dict]:
 def find_vendor_heading(raw_response: dict, page: int) -> str:
     candidate = ""
     for element in raw_response.get("elements", []):
-        if element.get("category") != "heading1" or element.get("page") != page:
+        category = element.get("category")
+        if element.get("page") != page:
+            continue
+        if category not in TITLE_CATEGORIES:
             continue
         text = ocr._content_to_text(element.get("content", {})).strip()
         if not text or text == COVER_TITLE or text.startswith("송장중량"):
             continue
-        candidate = _collapse_spaces(text)
+        collapsed = _collapse_spaces(text)
+        # heading1은 그대로 신뢰하되, paragraph로 분류된 경우는 회사명
+        # 형태("(주)"/"㈜" 포함, 글자 사이 공백은 무시)일 때만 후보로 인정해
+        # 다른 문단(면책 문구, 서명란 안내 등)이 거래처로 잘못 잡히는 것을 막는다.
+        if category == "paragraph" and not any(marker in collapsed for marker in COMPANY_NAME_MARKERS):
+            continue
+        candidate = collapsed
     return candidate
 
 

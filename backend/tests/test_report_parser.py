@@ -39,6 +39,22 @@ def test_find_cover_pages_ignores_other_headings():
     assert report_parser.find_cover_pages(raw) == []
 
 
+def test_find_cover_pages_detects_title_classified_as_paragraph():
+    # 실제 반입송장 21페이지 문서에서, 같은 제목("송장별 총괄 내역서")이 어떤
+    # 페이지에서는 heading1로, 다른 페이지(18페이지)에서는 paragraph로 분류되는
+    # 것이 실제 Upstage 응답으로 확인되었다. 이 페이지가 누락되지 않아야 한다.
+    raw = {
+        "elements": [
+            {
+                "page": 18,
+                "category": "paragraph",
+                "content": {"html": "<p>송장별 총괄 내역서</p>", "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_cover_pages(raw) == [18]
+
+
 def test_extract_material_rows_parses_table_and_skips_total_row():
     raw = make_cover_response(1, "동경강업(주)", [("SHD10", 675), ("SHD13", 21110)])
     rows = report_parser.extract_material_rows(raw, page=1)
@@ -115,6 +131,34 @@ def test_find_vendor_heading_ignores_title_and_weight_heading():
         ]
     }
     assert report_parser.find_vendor_heading(raw, page=1) == "동경강업(주)"
+
+
+def test_find_vendor_heading_detects_company_name_classified_as_paragraph():
+    # 실제 18페이지에서 회사명 "동 경 강 업 ( 주 )"도 heading1이 아니라
+    # paragraph로 분류되었다. "(주)"가 포함된 문단은 회사명 후보로 인정한다.
+    raw = {
+        "elements": [
+            {"page": 18, "category": "paragraph", "content": {"html": "<p>송장별 총괄 내역서</p>", "text": ""}},
+            {"page": 18, "category": "paragraph", "content": {"html": "<p>송장중량 : 20,511</p>", "text": ""}},
+            {"page": 18, "category": "paragraph", "content": {"html": "<p>동 경 강 업 ( 주 )</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=18) == "동경강업(주)"
+
+
+def test_find_vendor_heading_ignores_unrelated_paragraph_without_company_marker():
+    # "(주)"/"㈜"가 없는 일반 문단(면책 문구 등)은 거래처로 오인하면 안 된다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+            {
+                "page": 1,
+                "category": "paragraph",
+                "content": {"html": "<p>상차된 제품에 누락 및 변형이 없음을 확인함.</p>", "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == ""
 
 
 def test_build_report_data_aggregates_across_multiple_files_by_spec():
