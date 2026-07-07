@@ -64,6 +64,48 @@ def test_extract_material_rows_handles_comma_thousand_separators():
     assert rows[0]["weight_kg"] == 21110.0
 
 
+def test_extract_material_rows_skips_total_row_labeled_hapgye():
+    # 실제 Upstage API 테스트에서 합계 행 라벨이 "총 합"이 아니라 "합계"로 나온 사례를 재현한다.
+    table_html = _table_html(
+        ["직경", "단위중량(kg/m)", "발송중량(kg)", "할증중량(kg)", "비고"],
+        [
+            ["SHD10", "0.560", "675", "675", "동국제강"],
+            ["SHD13", "0.995", "21110", "21743", "동국제강"],
+            ["SHD16", "1.560", "6550", "6550", "동국제강"],
+            ["합계", "", "28335", "28968", ""],
+        ],
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
+        ]
+    }
+    rows = report_parser.extract_material_rows(raw, page=1)
+    assert [row["spec"] for row in rows] == ["SHD10", "SHD13", "SHD16"]
+    assert rows[0]["weight_kg"] == 675.0
+    assert rows[1]["weight_kg"] == 21110.0
+    assert rows[2]["weight_kg"] == 6550.0
+
+
+def test_extract_material_rows_skips_total_row_labeled_chonggye():
+    table_html = _table_html(
+        ["직경", "단위중량(kg/m)", "발송중량(kg)", "할증중량(kg)", "비고"],
+        [
+            ["SHD10", "0.560", "675", "675", "동국제강"],
+            ["총계", "", "675", "675", ""],
+        ],
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
+        ]
+    }
+    rows = report_parser.extract_material_rows(raw, page=1)
+    assert rows == [{"spec": "SHD10", "weight_kg": 675.0, "note": "동국제강"}]
+
+
 def test_find_vendor_heading_ignores_title_and_weight_heading():
     raw = {
         "elements": [

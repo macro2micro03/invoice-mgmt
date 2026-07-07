@@ -5,6 +5,8 @@ from . import ocr
 
 COVER_TITLE = "송장별 총괄 내역서"
 
+TOTAL_ROW_LABELS = {"총합", "총계", "합계"}
+
 
 def _collapse_spaces(text: str) -> str:
     return re.sub(r"\s+", "", text)
@@ -58,11 +60,11 @@ def extract_material_rows(raw_response: dict, page: int) -> list[dict]:
 
     result = []
     for row in rows[1:]:
-        if spec_idx >= len(row):
-            continue
-        if not row or not row[spec_idx].strip() or "총" in row[spec_idx]:
+        if not row or spec_idx >= len(row):
             continue
         spec = row[spec_idx].strip()
+        if not spec or _collapse_spaces(spec) in TOTAL_ROW_LABELS:
+            continue
         if weight_idx >= len(row):
             continue
         weight_text = row[weight_idx].strip().replace(",", "")
