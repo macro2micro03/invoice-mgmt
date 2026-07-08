@@ -16,8 +16,6 @@ const COLUMNS = [
   ['note', '비고'],
 ]
 
-const cellStyle = { border: '1px solid #ccc', padding: '4px 8px', whiteSpace: 'nowrap' }
-
 export default function SearchPage() {
   const [vendor, setVendor] = useState('')
   const [materialType, setMaterialType] = useState('')
@@ -30,29 +28,34 @@ export default function SearchPage() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="page" style={{ maxWidth: 720 }}>
       <h1>검색</h1>
-      <input placeholder="거래처" value={vendor} onChange={(e) => setVendor(e.target.value)} />
-      <input placeholder="자재종류" value={materialType} onChange={(e) => setMaterialType(e.target.value)} />
-      <button onClick={handleSearch}>검색</button>
-      <div style={{ overflowX: 'auto', marginTop: 12 }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+      <div className="search-bar">
+        <input className="input" placeholder="거래처" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+        <input
+          className="input"
+          placeholder="자재종류"
+          value={materialType}
+          onChange={(e) => setMaterialType(e.target.value)}
+        />
+        <button className="btn btn-primary" onClick={handleSearch}>
+          검색
+        </button>
+      </div>
+      <div className="table-wrap">
+        <table className="table">
           <thead>
             <tr>
               {COLUMNS.map(([key, label]) => (
-                <th key={key} style={{ ...cellStyle, textAlign: 'left', background: '#f2f2f2' }}>
-                  {label}
-                </th>
+                <th key={key}>{label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {results.map((item) => (
-              <tr key={item.id} onClick={() => navigate(`/invoices/${item.id}`)} style={{ cursor: 'pointer' }}>
+              <tr key={item.id} onClick={() => navigate(`/invoices/${item.id}`)}>
                 {COLUMNS.map(([key]) => (
-                  <td key={key} style={cellStyle}>
-                    {item[key] ?? ''}
-                  </td>
+                  <td key={key}>{item[key] ?? ''}</td>
                 ))}
               </tr>
             ))}

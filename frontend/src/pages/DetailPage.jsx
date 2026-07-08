@@ -25,7 +25,12 @@ export default function DetailPage() {
     getInvoice(id).then(setInvoice)
   }, [id])
 
-  if (!invoice) return <p style={{ padding: 16 }}>불러오는 중...</p>
+  if (!invoice)
+    return (
+      <div className="page">
+        <p>불러오는 중...</p>
+      </div>
+    )
 
   function handleChange(key, value) {
     setInvoice((prev) => ({ ...prev, [key]: value }))
@@ -41,27 +46,27 @@ export default function DetailPage() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="page">
       <h1>상세/수정</h1>
-      {invoice.photo_path && (
-        <img src={`/storage/${invoice.photo_path}`} alt="원본 사진" style={{ maxWidth: '100%' }} />
-      )}
-      {FIELD_DEFS.map(([key, label]) => (
-        <div key={key} style={{ marginBottom: 8 }}>
-          <label>
-            {label}
+      <div className="card">
+        {invoice.photo_path && (
+          <img className="photo-preview" src={`/storage/${invoice.photo_path}`} alt="원본 사진" />
+        )}
+        {FIELD_DEFS.map(([key, label]) => (
+          <div key={key} className="field">
+            <label>{label}</label>
             <input
+              className="input"
               type="text"
               value={invoice[key] || ''}
               onChange={(e) => handleChange(key, e.target.value)}
-              style={{ display: 'block', width: '100%' }}
             />
-          </label>
-        </div>
-      ))}
-      <button onClick={handleSave} disabled={saving}>
-        {saving ? '저장 중...' : '수정 저장'}
-      </button>
+          </div>
+        ))}
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ width: '100%' }}>
+          {saving ? '저장 중...' : '수정 저장'}
+        </button>
+      </div>
     </div>
   )
 }
