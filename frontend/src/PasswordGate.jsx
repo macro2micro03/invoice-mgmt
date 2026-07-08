@@ -38,20 +38,25 @@ export default function PasswordGate({ children }) {
   if (unlocked) return children
 
   return (
-    <div style={{ padding: 16 }}>
-      <h1>비밀번호 입력</h1>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="비밀번호"
-        />
-        <button type="submit" disabled={verifying}>
-          {verifying ? '확인 중...' : '확인'}
-        </button>
-      </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+    <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card" style={{ width: '100%', maxWidth: 320 }}>
+        <h1 style={{ textAlign: 'center' }}>비밀번호 입력</h1>
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="비밀번호"
+            />
+          </div>
+          <button className="btn btn-primary" type="submit" disabled={verifying} style={{ width: '100%' }}>
+            {verifying ? '확인 중...' : '확인'}
+          </button>
+        </form>
+        {error && <p className="banner banner-error">{error}</p>}
+      </div>
     </div>
   )
 }

@@ -10,7 +10,7 @@ export default function App() {
   return (
     <PasswordGate>
       <div>
-        <nav style={{ display: 'flex', gap: 12, padding: 12 }}>
+        <nav className="nav">
           <Link to="/">촬영</Link>
           <Link to="/search">검색</Link>
           <Link to="/report">보고서 생성</Link>
