@@ -24,11 +24,22 @@ export default function CapturePage() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="page">
       <h1>송장 촬영</h1>
-      <input type="file" accept="image/*,application/pdf" capture="environment" onChange={handleFileChange} />
-      {loading && <p>인식 중...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      <div className="card">
+        <div className="field">
+          <label>송장 사진 또는 PDF</label>
+          <input
+            className="input"
+            type="file"
+            accept="image/*,application/pdf"
+            capture="environment"
+            onChange={handleFileChange}
+          />
+        </div>
+        {loading && <p className="banner banner-success">인식 중...</p>}
+        {error && <p className="banner banner-error">{error}</p>}
+      </div>
     </div>
   )
 }
