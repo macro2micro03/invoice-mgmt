@@ -3,8 +3,11 @@ backend/__pycache__/
 backend/**/__pycache__/
 backend/storage/
 backend/.pytest_cache/
+backend/backend.log
 frontend/node_modules/
 frontend/dist/
+frontend/.env.local
 .superpowers/
 *.pyc
 .worktrees/
+.claude/
