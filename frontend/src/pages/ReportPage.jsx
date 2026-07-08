@@ -61,68 +61,64 @@ export default function ReportPage() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="page">
       <h1>자재검수요청서 생성</h1>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label>
-            공사명
-            <input value={projectName} onChange={(e) => setProjectName(e.target.value)} required />
-          </label>
+      <form className="card" onSubmit={handleSubmit}>
+        <div className="field">
+          <label>공사명</label>
+          <input className="input" value={projectName} onChange={(e) => setProjectName(e.target.value)} required />
         </div>
-        <div>
-          <label>
-            공종
-            <select value={workType} onChange={(e) => setWorkType(e.target.value)}>
-              <option value="건축">건축</option>
-              <option value="토목">토목</option>
-              <option value="기계">기계</option>
-              <option value="전기">전기</option>
-            </select>
-          </label>
+        <div className="field">
+          <label>공종</label>
+          <select className="select" value={workType} onChange={(e) => setWorkType(e.target.value)}>
+            <option value="건축">건축</option>
+            <option value="토목">토목</option>
+            <option value="기계">기계</option>
+            <option value="전기">전기</option>
+          </select>
         </div>
-        <div>
-          <label>
-            자재종류
-            <input value={materialType} onChange={(e) => setMaterialType(e.target.value)} required />
-          </label>
+        <div className="field">
+          <label>자재종류</label>
+          <input className="input" value={materialType} onChange={(e) => setMaterialType(e.target.value)} required />
         </div>
-        <div>
-          <label>
-            발신자(현장대리인)
-            <input value={sender} onChange={(e) => setSender(e.target.value)} required />
-          </label>
+        <div className="field">
+          <label>발신자(현장대리인)</label>
+          <input className="input" value={sender} onChange={(e) => setSender(e.target.value)} required />
         </div>
-        <div>
-          <label>
-            수신자(총괄관리원)
-            <input value={receiver} onChange={(e) => setReceiver(e.target.value)} required />
-          </label>
+        <div className="field">
+          <label>수신자(총괄관리원)</label>
+          <input className="input" value={receiver} onChange={(e) => setReceiver(e.target.value)} required />
         </div>
-        <div>
-          <label>
-            송장 갑지 파일 (PDF 또는 이미지, 여러 장 가능)
-            <input type="file" accept="application/pdf,image/*" multiple onChange={handleFilesChange} required />
-          </label>
+        <div className="field">
+          <label>송장 갑지 파일 (PDF 또는 이미지, 여러 장 가능)</label>
+          <input
+            className="input"
+            type="file"
+            accept="application/pdf,image/*"
+            multiple
+            onChange={handleFilesChange}
+            required
+          />
         </div>
-        <div>
-          <label>
-            사진대지 상단 사진 (선택, 여러 장 가능)
-            <input type="file" accept="image/*" multiple onChange={handleTopPhotosChange} />
-          </label>
+        <div className="field">
+          <label>사진대지 상단 사진 (선택, 여러 장 가능)</label>
+          <input className="input" type="file" accept="image/*" multiple onChange={handleTopPhotosChange} />
         </div>
-        <div>
-          <label>
-            사진대지 하단 사진 (선택, 여러 장 가능)
-            <input type="file" accept="image/*" multiple onChange={handleBottomPhotosChange} />
-          </label>
+        <div className="field">
+          <label>사진대지 하단 사진 (선택, 여러 장 가능)</label>
+          <input className="input" type="file" accept="image/*" multiple onChange={handleBottomPhotosChange} />
         </div>
-        <button type="submit" disabled={generating || files.length === 0}>
+        <button
+          className="btn btn-primary"
+          type="submit"
+          disabled={generating || files.length === 0}
+          style={{ width: '100%' }}
+        >
           {generating ? '생성 중...' : '보고서 생성'}
         </button>
       </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {warning && <p style={{ color: '#b8860b' }}>{warning}</p>}
+      {error && <p className="banner banner-error">{error}</p>}
+      {warning && <p className="banner banner-warning">{warning}</p>}
     </div>
   )
 }
