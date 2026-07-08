@@ -73,13 +73,19 @@ export async function updateInvoice(id, fields) {
   return response.json()
 }
 
-export async function createMaterialInspectionReport(fields, files) {
+export async function createMaterialInspectionReport(fields, files, topPhotos = [], bottomPhotos = []) {
   const formData = new FormData()
   Object.entries(fields).forEach(([key, value]) => {
     formData.append(key, value)
   })
   files.forEach((file) => {
     formData.append('files', file)
+  })
+  topPhotos.forEach((file) => {
+    formData.append('top_photos', file)
+  })
+  bottomPhotos.forEach((file) => {
+    formData.append('bottom_photos', file)
   })
   const response = await fetch(`${API_BASE}/reports/material-inspection`, {
     method: 'POST',
