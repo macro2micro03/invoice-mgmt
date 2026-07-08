@@ -9,20 +9,28 @@ def _table_html(headers, rows):
     return f"<table><thead>{thead}</thead><tbody>{tbody}</tbody></table>"
 
 
-def make_cover_response(page, vendor_heading, spec_weight_pairs, note="동국제강"):
-    material_rows = [[spec, "0.560", str(kg), str(kg), note] for spec, kg in spec_weight_pairs]
-    total_kg = sum(kg for _, kg in spec_weight_pairs)
+def make_cover_response(page, vendor_heading, spec_weight_pairs, note="동국제강", delivery_date=None):
+    material_rows = [
+        [spec, "0.560", str(weight_kg), str(weight_kg), note] for spec, weight_kg in spec_weight_pairs
+    ]
+    total_kg = sum(weight_kg for _, weight_kg in spec_weight_pairs)
     table_html = _table_html(
         ["직경", "단위중량(kg/m)", "발송중량(kg)", "할증중량(kg)", "비고"],
         material_rows + [["총 합", "", str(total_kg), "", ""]],
     )
-    return {
-        "elements": [
-            {"page": page, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
-            {"page": page, "category": "table", "content": {"html": table_html, "text": ""}},
-            {"page": page, "category": "heading1", "content": {"html": f"<h1>{vendor_heading}</h1>", "text": ""}},
-        ]
-    }
+    elements = [
+        {"page": page, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+        {"page": page, "category": "table", "content": {"html": table_html, "text": ""}},
+        {"page": page, "category": "heading1", "content": {"html": f"<h1>{vendor_heading}</h1>", "text": ""}},
+    ]
+    if delivery_date:
+        info_table_html = (
+            "<table><tbody>"
+            f"<tr><td>도</td><td>착 일</td><td>: {delivery_date} / {delivery_date} 연 락 처 : 테스트</td></tr>"
+            "</tbody></table>"
+        )
+        elements.append({"page": page, "category": "table", "content": {"html": info_table_html, "text": ""}})
+    return {"elements": elements}
 
 
 def test_find_cover_pages_detects_matching_heading():
@@ -223,3 +231,55 @@ def test_extract_material_rows_uses_spec_idx_not_hardcoded_row_zero():
     assert rows[1]["spec"] == "SHD13"
     assert rows[1]["weight_kg"] == 100.0
     assert rows[1]["note"] == ""  # no note in the data
+
+
+def test_find_delivery_date_extracts_first_date_from_info_table():
+    info_table_html = (
+        "<table><tbody>"
+        "<tr><td>송</td><td>장 번 호 :</td><td>20260331-023 ( 97 회차 )</td></tr>"
+        "<tr><td>도</td><td>착 일</td><td>: 2026-03-31 / 2026-03-31 연 락 처 : 김민영 철근부장</td></tr>"
+        "</tbody></table>"
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": info_table_html, "text": ""}},
+        ]
+    }
+    assert report_parser.find_delivery_date(raw, page=1) == "2026-03-31"
+
+
+def test_find_delivery_date_returns_empty_when_not_found():
+    raw = {
+        "elements": [
+            {"page": 1, "category": "table", "content": {"html": "<table><tbody></tbody></table>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_delivery_date(raw, page=1) == ""
+
+
+def test_find_delivery_date_ignores_other_pages():
+    info_table_html = (
+        "<table><tbody>"
+        "<tr><td>도</td><td>착 일</td><td>: 2026-03-31</td></tr>"
+        "</tbody></table>"
+    )
+    raw = {
+        "elements": [
+            {"page": 2, "category": "table", "content": {"html": info_table_html, "text": ""}},
+        ]
+    }
+    assert report_parser.find_delivery_date(raw, page=1) == ""
+
+
+def test_build_report_data_uses_latest_delivery_date_across_pages():
+    raw1 = make_cover_response(1, "동경강업(주)", [("SHD10", 675000)], delivery_date="2026-03-30")
+    raw2 = make_cover_response(1, "동경강업(주)", [("SHD13", 2111000)], delivery_date="2026-03-31")
+    data = report_parser.build_report_data([raw1, raw2])
+    assert data["delivery_date"] == "2026-03-31"
+
+
+def test_build_report_data_delivery_date_empty_when_not_found():
+    raw = make_cover_response(1, "동경강업(주)", [("SHD10", 675000)])
+    data = report_parser.build_report_data([raw])
+    assert data["delivery_date"] == ""

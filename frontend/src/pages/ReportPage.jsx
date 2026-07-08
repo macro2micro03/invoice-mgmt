@@ -8,12 +8,22 @@ export default function ReportPage() {
   const [sender, setSender] = useState('')
   const [receiver, setReceiver] = useState('')
   const [files, setFiles] = useState([])
+  const [topPhotos, setTopPhotos] = useState([])
+  const [bottomPhotos, setBottomPhotos] = useState([])
   const [error, setError] = useState('')
   const [warning, setWarning] = useState('')
   const [generating, setGenerating] = useState(false)
 
   function handleFilesChange(event) {
     setFiles(Array.from(event.target.files))
+  }
+
+  function handleTopPhotosChange(event) {
+    setTopPhotos(Array.from(event.target.files))
+  }
+
+  function handleBottomPhotosChange(event) {
+    setBottomPhotos(Array.from(event.target.files))
   }
 
   async function handleSubmit(event) {
@@ -31,11 +41,13 @@ export default function ReportPage() {
           receiver,
         },
         files,
+        topPhotos,
+        bottomPhotos,
       )
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `자재검수요청서-${materialType || '자재'}.docx`
+      link.download = `자재검수요청서-${materialType || '자재'}.xlsx`
       link.click()
       URL.revokeObjectURL(url)
       if (warnings) {
@@ -52,16 +64,16 @@ export default function ReportPage() {
     <div style={{ padding: 16 }}>
       <h1>자재검수요청서 생성</h1>
       <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 8 }}>
+        <div>
           <label>
             공사명
-            <input value={projectName} onChange={(e) => setProjectName(e.target.value)} style={{ display: 'block', width: '100%' }} />
+            <input value={projectName} onChange={(e) => setProjectName(e.target.value)} required />
           </label>
         </div>
-        <div style={{ marginBottom: 8 }}>
+        <div>
           <label>
-            공종명
-            <select value={workType} onChange={(e) => setWorkType(e.target.value)} style={{ display: 'block', width: '100%' }}>
+            공종
+            <select value={workType} onChange={(e) => setWorkType(e.target.value)}>
               <option value="건축">건축</option>
               <option value="토목">토목</option>
               <option value="기계">기계</option>
@@ -69,28 +81,40 @@ export default function ReportPage() {
             </select>
           </label>
         </div>
-        <div style={{ marginBottom: 8 }}>
+        <div>
           <label>
             자재종류
-            <input value={materialType} onChange={(e) => setMaterialType(e.target.value)} style={{ display: 'block', width: '100%' }} />
+            <input value={materialType} onChange={(e) => setMaterialType(e.target.value)} required />
           </label>
         </div>
-        <div style={{ marginBottom: 8 }}>
+        <div>
           <label>
             발신자(현장대리인)
-            <input value={sender} onChange={(e) => setSender(e.target.value)} style={{ display: 'block', width: '100%' }} />
+            <input value={sender} onChange={(e) => setSender(e.target.value)} required />
           </label>
         </div>
-        <div style={{ marginBottom: 8 }}>
+        <div>
           <label>
-            수신자(총괄감리원)
-            <input value={receiver} onChange={(e) => setReceiver(e.target.value)} style={{ display: 'block', width: '100%' }} />
+            수신자(총괄관리원)
+            <input value={receiver} onChange={(e) => setReceiver(e.target.value)} required />
           </label>
         </div>
-        <div style={{ marginBottom: 8 }}>
+        <div>
           <label>
-            반입송장 PDF 또는 갑지 사진 (여러 개 선택 가능)
-            <input type="file" accept="application/pdf,image/*" multiple onChange={handleFilesChange} style={{ display: 'block' }} />
+            송장 갑지 파일 (PDF 또는 이미지, 여러 장 가능)
+            <input type="file" accept="application/pdf,image/*" multiple onChange={handleFilesChange} required />
+          </label>
+        </div>
+        <div>
+          <label>
+            사진대지 상단 사진 (선택, 여러 장 가능)
+            <input type="file" accept="image/*" multiple onChange={handleTopPhotosChange} />
+          </label>
+        </div>
+        <div>
+          <label>
+            사진대지 하단 사진 (선택, 여러 장 가능)
+            <input type="file" accept="image/*" multiple onChange={handleBottomPhotosChange} />
           </label>
         </div>
         <button type="submit" disabled={generating || files.length === 0}>

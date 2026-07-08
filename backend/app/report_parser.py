@@ -7,6 +7,8 @@ COVER_TITLE = "송장별 총괄 내역서"
 
 TOTAL_ROW_LABELS = {"총합", "총계", "합계"}
 
+DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
+
 # Upstage의 category 분류(heading1 vs paragraph)는 동일한 문서 안에서도
 # 페이지마다 비결정적으로 갈리는 경우가 실제로 확인되었다(실제 반입송장
 # 21페이지 중 갑지 제목과 회사명이 어떤 페이지에서는 heading1로, 다른
@@ -108,12 +110,27 @@ def find_vendor_heading(raw_response: dict, page: int) -> str:
     return candidate
 
 
+def find_delivery_date(raw_response: dict, page: int) -> str:
+    for element in raw_response.get("elements", []):
+        if element.get("category") != "table" or element.get("page") != page:
+            continue
+        table_html = element.get("content", {}).get("html", "")
+        for row in _parse_table_rows(table_html):
+            joined = _collapse_spaces("".join(row))
+            if joined.startswith("도착일"):
+                match = DATE_PATTERN.search(joined)
+                if match:
+                    return match.group(0)
+    return ""
+
+
 def build_report_data(raw_responses: list[dict]) -> dict:
     totals: dict[str, float] = {}
     vendor = ""
     manufacturer = ""
     skipped_pages: list[int] = []
     cover_pages_found = 0
+    delivery_dates: list[str] = []
 
     for raw_response in raw_responses:
         for page in find_cover_pages(raw_response):
@@ -125,6 +142,9 @@ def build_report_data(raw_responses: list[dict]) -> dict:
             page_vendor = find_vendor_heading(raw_response, page)
             if page_vendor:
                 vendor = page_vendor
+            delivery_date = find_delivery_date(raw_response, page)
+            if delivery_date:
+                delivery_dates.append(delivery_date)
             for row in rows:
                 totals[row["spec"]] = totals.get(row["spec"], 0.0) + row["weight_kg"]
                 if row["note"] and not manufacturer:
@@ -139,4 +159,9 @@ def build_report_data(raw_responses: list[dict]) -> dict:
     ]
     vendor_display = f"{vendor}/{manufacturer}" if vendor and manufacturer else vendor
 
-    return {"specs": specs, "vendor": vendor_display, "skipped_pages": skipped_pages}
+    return {
+        "specs": specs,
+        "vendor": vendor_display,
+        "skipped_pages": skipped_pages,
+        "delivery_date": max(delivery_dates) if delivery_dates else "",
+    }
