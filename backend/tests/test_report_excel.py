@@ -109,3 +109,27 @@ def test_fill_material_inspection_form_reports_skipped_specs_beyond_capacity():
     sheet = wb.active
     assert sheet["A24"].value == "철근"
     assert sheet["B24"].value == "SPEC15"
+
+
+def test_fill_material_inspection_form_inserts_top_and_bottom_photos():
+    from io import BytesIO as _BytesIO
+
+    from PIL import Image as _PILImage
+
+    def _photo_bytes():
+        img = _PILImage.new("RGB", (100, 100), (0, 255, 0))
+        buf = _BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    xlsx_bytes, _ = _fill(top_photos=[_photo_bytes(), _photo_bytes()], bottom_photos=[_photo_bytes()])
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert len(sheet._images) == 3
+
+
+def test_fill_material_inspection_form_no_photos_means_no_images():
+    xlsx_bytes, _ = _fill()
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert len(sheet._images) == 0

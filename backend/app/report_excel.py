@@ -4,6 +4,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from . import report_photos
+
 TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "material_inspection_form.xlsx"
 
 MATERIAL_ROW_START = 9
@@ -85,6 +87,9 @@ def fill_material_inspection_form(
 
     sheet["H83"] = delivery_date
     sheet["H86"] = delivery_date
+
+    report_photos.insert_photo_grid(sheet, anchor_row=81, photos=top_photos or [])
+    report_photos.insert_photo_grid(sheet, anchor_row=84, photos=bottom_photos or [])
 
     buffer = BytesIO()
     workbook.save(buffer)
