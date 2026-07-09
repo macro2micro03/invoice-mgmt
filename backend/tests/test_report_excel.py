@@ -100,6 +100,15 @@ def test_fill_material_inspection_form_leaves_inspection_result_columns_blank():
     assert sheet["J9"].value is None
 
 
+def test_fill_material_inspection_form_centers_material_name_and_spec_columns():
+    xlsx_bytes, _ = _fill()
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    for row in (9, 10):
+        assert sheet[f"A{row}"].alignment.horizontal == "center"
+        assert sheet[f"B{row}"].alignment.horizontal == "center"
+
+
 def test_fill_material_inspection_form_reports_skipped_specs_beyond_capacity():
     many_specs = [{"spec": f"SPEC{i}", "quantity_ton": 1.0} for i in range(20)]
     xlsx_bytes, skipped = _fill(specs=many_specs)

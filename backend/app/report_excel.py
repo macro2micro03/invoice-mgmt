@@ -3,8 +3,11 @@ from io import BytesIO
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.styles import Alignment
 
 from . import report_photos
+
+CENTER_ALIGNMENT = Alignment(horizontal="center", vertical="center")
 
 TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "material_inspection_form.xlsx"
 
@@ -65,7 +68,9 @@ def fill_material_inspection_form(
     for offset, spec_row in enumerate(fillable_specs):
         row = MATERIAL_ROW_START + offset
         sheet[f"A{row}"] = material_type
+        sheet[f"A{row}"].alignment = CENTER_ALIGNMENT
         sheet[f"B{row}"] = spec_row["spec"]
+        sheet[f"B{row}"].alignment = CENTER_ALIGNMENT
         sheet[f"D{row}"] = "Ton"
         sheet[f"E{row}"] = spec_row["quantity_ton"]
         sheet[f"F{row}"] = vendor
