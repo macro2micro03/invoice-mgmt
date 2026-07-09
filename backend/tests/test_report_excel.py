@@ -108,6 +108,7 @@ def test_fill_material_inspection_form_centers_material_name_and_spec_columns():
     for row in (9, 10):
         assert sheet[f"A{row}"].alignment.horizontal == "center"
         assert sheet[f"B{row}"].alignment.horizontal == "center"
+        assert sheet[f"D{row}"].alignment.horizontal == "center"
 
 
 def test_fill_material_inspection_form_uses_korean_date_format_for_receipt_and_inspection_dates():

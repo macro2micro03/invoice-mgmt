@@ -78,6 +78,7 @@ def fill_material_inspection_form(
         sheet[f"B{row}"] = spec_row["spec"]
         sheet[f"B{row}"].alignment = CENTER_ALIGNMENT
         sheet[f"D{row}"] = "Ton"
+        sheet[f"D{row}"].alignment = CENTER_ALIGNMENT
         sheet[f"E{row}"] = spec_row["quantity_ton"]
         sheet[f"F{row}"] = vendor
 
