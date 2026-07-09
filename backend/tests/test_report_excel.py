@@ -1,3 +1,4 @@
+from datetime import date
 from io import BytesIO
 from pathlib import Path
 
@@ -107,6 +108,17 @@ def test_fill_material_inspection_form_centers_material_name_and_spec_columns():
     for row in (9, 10):
         assert sheet[f"A{row}"].alignment.horizontal == "center"
         assert sheet[f"B{row}"].alignment.horizontal == "center"
+
+
+def test_fill_material_inspection_form_uses_korean_date_format_for_receipt_and_inspection_dates():
+    xlsx_bytes, _ = _fill()
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    today = date.today()
+    expected = f"{today:%Y}년 {today:%m}월 {today:%d}일"
+    assert sheet["G4"].value == expected
+    assert sheet["G5"].value == expected
+    assert sheet["H36"].value == expected
 
 
 def test_fill_material_inspection_form_reports_skipped_specs_beyond_capacity():
