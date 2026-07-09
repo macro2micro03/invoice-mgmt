@@ -4,7 +4,7 @@ import { createMaterialInspectionReport } from '../api.js'
 export default function ReportPage() {
   const [projectName, setProjectName] = useState('서소문 재개발')
   const [workType, setWorkType] = useState('건축')
-  const [materialType, setMaterialType] = useState('')
+  const [materialType, setMaterialType] = useState('철근')
   const [sender, setSender] = useState('')
   const [receiver, setReceiver] = useState('')
   const [files, setFiles] = useState([])
