@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createMaterialInspectionReport } from '../api.js'
 
 export default function ReportPage() {
-  const [projectName, setProjectName] = useState('')
+  const [projectName, setProjectName] = useState('서소문 재개발')
   const [workType, setWorkType] = useState('건축')
   const [materialType, setMaterialType] = useState('')
   const [sender, setSender] = useState('')
