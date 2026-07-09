@@ -44,7 +44,7 @@ async def create_material_inspection_report(
     bottom_photo_bytes = [await photo.read() for photo in bottom_photos]
 
     report_number = crud.get_next_report_number(db)
-    document_number = f"건축(자검)-{material_type}-{report_number}호"
+    document_number = f"건축(자검) - {material_type} - {report_number}호"
 
     xlsx_bytes, skipped_specs = report_excel.fill_material_inspection_form(
         report_excel.TEMPLATE_PATH,

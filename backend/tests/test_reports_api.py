@@ -167,7 +167,7 @@ def test_create_report_content_disposition_korean_filename(monkeypatch):
     encoded_part = content_disposition.split("filename*=UTF-8''")[1]
     decoded_filename = unquote(encoded_part)
 
-    assert decoded_filename.startswith("건축(자검)-철근-")
+    assert decoded_filename.startswith("건축(자검) - 철근 - ")
     assert decoded_filename.endswith("호.xlsx")
 
 
