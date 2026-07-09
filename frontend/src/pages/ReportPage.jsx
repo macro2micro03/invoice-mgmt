@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import PhotoPicker from '../components/PhotoPicker.jsx'
 import { createMaterialInspectionReport } from '../api.js'
 
 export default function ReportPage() {
@@ -13,18 +14,6 @@ export default function ReportPage() {
   const [error, setError] = useState('')
   const [warning, setWarning] = useState('')
   const [generating, setGenerating] = useState(false)
-
-  function handleFilesChange(event) {
-    setFiles(Array.from(event.target.files))
-  }
-
-  function handleTopPhotosChange(event) {
-    setTopPhotos(Array.from(event.target.files))
-  }
-
-  function handleBottomPhotosChange(event) {
-    setBottomPhotos(Array.from(event.target.files))
-  }
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -89,25 +78,24 @@ export default function ReportPage() {
           <label>수신자(총괄관리원)</label>
           <input className="input" value={receiver} onChange={(e) => setReceiver(e.target.value)} required />
         </div>
-        <div className="field">
-          <label>송장 갑지 파일 (PDF 또는 이미지, 여러 장 가능)</label>
-          <input
-            className="input"
-            type="file"
-            accept="application/pdf,image/*"
-            multiple
-            onChange={handleFilesChange}
-            required
-          />
-        </div>
-        <div className="field">
-          <label>사진대지 상단 사진 (선택, 여러 장 가능)</label>
-          <input className="input" type="file" accept="image/*" multiple onChange={handleTopPhotosChange} />
-        </div>
-        <div className="field">
-          <label>사진대지 하단 사진 (선택, 여러 장 가능)</label>
-          <input className="input" type="file" accept="image/*" multiple onChange={handleBottomPhotosChange} />
-        </div>
+        <PhotoPicker
+          label="송장 갑지 파일 (PDF 또는 이미지, 여러 장 가능)"
+          accept="application/pdf,image/*"
+          files={files}
+          onFilesChange={setFiles}
+        />
+        <PhotoPicker
+          label="사진대지 상단 사진 (선택, 여러 장 가능)"
+          accept="image/*"
+          files={topPhotos}
+          onFilesChange={setTopPhotos}
+        />
+        <PhotoPicker
+          label="사진대지 하단 사진 (선택, 여러 장 가능)"
+          accept="image/*"
+          files={bottomPhotos}
+          onFilesChange={setBottomPhotos}
+        />
         <button
           className="btn btn-primary"
           type="submit"
