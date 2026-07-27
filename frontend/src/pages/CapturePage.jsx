@@ -29,13 +29,27 @@ export default function CapturePage() {
       <div className="card">
         <div className="field">
           <label>송장 사진 또는 PDF</label>
-          <input
-            className="input"
-            type="file"
-            accept="image/*,application/pdf"
-            capture="environment"
-            onChange={handleFileChange}
-          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <label className="btn btn-primary photo-picker-add">
+              📷 촬영
+              <input
+                className="photo-picker-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+              />
+            </label>
+            <label className="btn btn-secondary photo-picker-add">
+              📁 파일 선택
+              <input
+                className="photo-picker-input"
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={handleFileChange}
+              />
+            </label>
+          </div>
         </div>
         {loading && <p className="banner banner-success">인식 중...</p>}
         {error && <p className="banner banner-error">{error}</p>}
