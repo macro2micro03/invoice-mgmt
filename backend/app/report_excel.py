@@ -80,7 +80,7 @@ def fill_material_inspection_form(
         sheet[f"D{row}"] = "Ton"
         sheet[f"D{row}"].alignment = CENTER_ALIGNMENT
         sheet[f"E{row}"] = spec_row["quantity_ton"]
-        sheet[f"F{row}"] = vendor
+        sheet[f"F{row}"] = spec_row.get("vendor", vendor)
 
     sheet["C27"] = today
     sheet["H27"] = today

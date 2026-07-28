@@ -65,6 +65,26 @@ def test_fill_material_inspection_form_fills_material_rows():
     assert sheet["E10"].value == 21.11
 
 
+def test_fill_material_inspection_form_uses_per_row_vendor_when_provided():
+    xlsx_bytes, _ = _fill(
+        specs=[
+            {"spec": "SHD10", "quantity_ton": 1.0, "vendor": "동경강업(주)/동국제강"},
+            {"spec": "SHD13", "quantity_ton": 0.5, "vendor": "대한제강"},
+        ]
+    )
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert sheet["F9"].value == "동경강업(주)/동국제강"
+    assert sheet["F10"].value == "대한제강"
+
+
+def test_fill_material_inspection_form_falls_back_to_top_level_vendor_when_row_has_none():
+    xlsx_bytes, _ = _fill(specs=[{"spec": "SHD10", "quantity_ton": 1.0}], vendor="공통거래처")
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert sheet["F9"].value == "공통거래처"
+
+
 def test_fill_material_inspection_form_computes_summary_fields():
     xlsx_bytes, _ = _fill()
     wb = load_workbook(BytesIO(xlsx_bytes))
