@@ -48,6 +48,16 @@ def update_invoice(db: Session, invoice_id: int, data: schemas.InvoiceUpdate) ->
     return invoice
 
 
+def list_invoices_by_material_and_date(db: Session, material_type: str, delivery_date: date) -> list[models.Invoice]:
+    return (
+        db.query(models.Invoice)
+        .filter(models.Invoice.material_type == material_type)
+        .filter(models.Invoice.delivery_date == delivery_date)
+        .order_by(models.Invoice.id)
+        .all()
+    )
+
+
 def get_next_report_number(db: Session) -> int:
     sequence = db.query(models.ReportSequence).filter(models.ReportSequence.id == 1).first()
     if sequence is None:
