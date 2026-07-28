@@ -1,17 +1,19 @@
-from typing import List
+from datetime import date
+from typing import List, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from .. import crud, ocr, report_excel, report_parser
+from .. import crud, ocr, report_excel, report_from_records, report_parser
 from ..auth import verify_password
 from ..database import get_db
 
 router = APIRouter(dependencies=[Depends(verify_password)])
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+CAPTURE_REPORT_MATERIAL_TYPE = "철근"
 
 
 @router.post("/reports/material-inspection")
@@ -21,24 +23,34 @@ async def create_material_inspection_report(
     material_type: str = Form(...),
     sender: str = Form(...),
     receiver: str = Form(...),
-    files: List[UploadFile] = File(...),
+    files: List[UploadFile] = File(default=[]),
+    delivery_date: Optional[str] = Form(None),
     top_photos: List[UploadFile] = File(default=[]),
     bottom_photos: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
-    raw_responses = []
-    for uploaded_file in files:
-        image_bytes = await uploaded_file.read()
-        try:
-            raw_response = ocr.call_upstage_ocr(image_bytes, filename=uploaded_file.filename or "invoice.jpg")
-        except Exception as error:
-            raise HTTPException(status_code=502, detail=f"OCR 호출 실패: {error}") from error
-        raw_responses.append(raw_response)
+    if delivery_date:
+        parsed_date = date.fromisoformat(delivery_date)
+        invoices = crud.list_invoices_by_material_and_date(db, CAPTURE_REPORT_MATERIAL_TYPE, parsed_date)
+        if not invoices:
+            raise HTTPException(status_code=400, detail="해당 날짜에 촬영된 철근 기록이 없습니다")
+        report_data = report_from_records.build_report_data_from_invoices(invoices, delivery_date=delivery_date)
+    else:
+        if not files:
+            raise HTTPException(status_code=400, detail="파일을 업로드하거나 반입일자를 선택해주세요")
+        raw_responses = []
+        for uploaded_file in files:
+            image_bytes = await uploaded_file.read()
+            try:
+                raw_response = ocr.call_upstage_ocr(image_bytes, filename=uploaded_file.filename or "invoice.jpg")
+            except Exception as error:
+                raise HTTPException(status_code=502, detail=f"OCR 호출 실패: {error}") from error
+            raw_responses.append(raw_response)
 
-    try:
-        report_data = report_parser.build_report_data(raw_responses)
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
+        try:
+            report_data = report_parser.build_report_data(raw_responses)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     top_photo_bytes = [await photo.read() for photo in top_photos]
     bottom_photo_bytes = [await photo.read() for photo in bottom_photos]

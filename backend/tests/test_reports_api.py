@@ -284,3 +284,64 @@ def test_create_report_accepts_photo_uploads(monkeypatch):
     workbook = load_workbook(_BytesIO(response.content))
     sheet = workbook.active
     assert len(sheet._images) == 2
+
+
+def test_create_report_from_delivery_date_returns_xlsx(monkeypatch):
+    from app import excel as excel_module
+    from app import pdf as pdf_module
+
+    monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
+    monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")
+
+    client.post(
+        "/invoices",
+        data={
+            "material_type": "철근",
+            "vendor": "동경강업(주)",
+            "delivery_date": "2026-04-20",
+            "spec": "SHD10",
+            "weight": "1000",
+            "note": "동국제강",
+        },
+    )
+    client.post(
+        "/invoices",
+        data={
+            "material_type": "철근",
+            "vendor": "대한제강",
+            "delivery_date": "2026-04-20",
+            "spec": "SHD13",
+            "weight": "500",
+            "note": "",
+        },
+    )
+
+    response = client.post(
+        "/reports/material-inspection",
+        data={**_form_fields(), "delivery_date": "2026-04-20"},
+    )
+    assert response.status_code == 200
+    workbook = load_workbook(BytesIO(response.content))
+    sheet = workbook.active
+    assert sheet["A9"].value == "철근"
+    assert sheet["F9"].value == "동경강업(주)/동국제강"
+    assert sheet["F10"].value == "대한제강"
+    assert sheet["H35"].value == "2026-04-20"
+
+
+def test_create_report_from_delivery_date_400_when_no_records():
+    response = client.post(
+        "/reports/material-inspection",
+        data={**_form_fields(), "delivery_date": "2099-01-01"},
+    )
+    assert response.status_code == 400
+    assert "철근 기록이 없습니다" in response.json()["detail"]
+
+
+def test_create_report_400_when_neither_files_nor_delivery_date_given():
+    response = client.post(
+        "/reports/material-inspection",
+        data=_form_fields(),
+    )
+    assert response.status_code == 400
+    assert "파일을 업로드하거나 반입일자를 선택" in response.json()["detail"]
