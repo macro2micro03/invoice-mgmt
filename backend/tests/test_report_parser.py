@@ -377,3 +377,38 @@ def test_build_capture_records_returns_empty_when_table_not_found():
         ]
     }
     assert report_parser.build_capture_records(raw) == []
+
+
+def test_build_capture_records_only_uses_first_cover_page():
+    # 다중 페이지 PDF(예: 21페이지 반입송장)를 촬영 업로드로 잘못 넣은 경우,
+    # 페이지 2 이후의 갑지는 무시하고 첫 갑지 페이지만 처리해야 한다.
+    page1 = make_cover_response(
+        1,
+        "동경강업(주)",
+        [("SHD10", 9401)],
+        note="현대제철",
+        delivery_date="2026-04-20",
+        vehicle_no="서울85바3204",
+        invoice_no="20260420-024",
+    )
+    page2 = make_cover_response(
+        2,
+        "다른거래처(주)",
+        [("SHD22", 5000)],
+        note="다른제조사",
+        delivery_date="2026-05-01",
+        vehicle_no="경기99가1234",
+        invoice_no="20260501-099",
+    )
+    raw = {"elements": page1["elements"] + page2["elements"]}
+
+    records = report_parser.build_capture_records(raw)
+
+    assert len(records) == 1
+    assert records[0]["vendor"] == "동경강업(주)"
+    assert records[0]["spec"] == "SHD10"
+    assert records[0]["delivery_date"] == "2026-04-20"
+    assert records[0]["vehicle_no"] == "서울85바3204"
+    assert records[0]["invoice_no"] == "20260420-024"
+    specs = {record["spec"] for record in records}
+    assert "SHD22" not in specs

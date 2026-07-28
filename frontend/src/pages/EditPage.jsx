@@ -58,13 +58,16 @@ export default function EditPage() {
 
   async function handleSave() {
     setSaving(true)
+    let saved = 0
     try {
       for (const item of items) {
         await createInvoice({ ...common, ...item }, photoFile)
+        saved += 1
       }
       navigate('/search')
     } catch (err) {
-      alert('저장에 실패했습니다. 다시 시도해주세요.')
+      setItems((prev) => prev.slice(saved))
+      alert(`${saved}건 저장 후 실패했습니다. 남은 ${items.length - saved}건을 다시 시도해주세요.`)
     } finally {
       setSaving(false)
     }

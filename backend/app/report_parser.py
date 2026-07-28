@@ -156,7 +156,7 @@ def find_invoice_no(raw_response: dict, page: int) -> str:
 
 def build_capture_records(raw_response: dict, material_type: str = "철근") -> list[dict]:
     records: list[dict] = []
-    for page in find_cover_pages(raw_response):
+    for page in find_cover_pages(raw_response)[:1]:
         rows = extract_material_rows(raw_response, page)
         if not rows:
             continue
