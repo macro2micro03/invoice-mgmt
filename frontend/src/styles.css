@@ -91,7 +91,7 @@ body {
   gap: var(--space-xs);
 }
 
-.field label {
+.field label:not(.btn) {
   font-size: 13px;
   font-weight: 600;
   color: var(--color-text-muted);
@@ -240,6 +240,7 @@ body {
   align-items: center;
   justify-content: center;
   width: auto;
+  flex: 1;
 }
 
 .photo-picker-input {
