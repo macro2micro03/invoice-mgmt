@@ -8,6 +8,8 @@ COVER_TITLE = "송장별 총괄 내역서"
 TOTAL_ROW_LABELS = {"총합", "총계", "합계"}
 
 DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
+VEHICLE_NO_PATTERN = re.compile(r"[가-힣]{0,3}\d{2,3}[가-힣]\d{4}")
+INVOICE_NO_PATTERN = re.compile(r"\d{8}-\d{3}")
 
 # Upstage의 category 분류(heading1 vs paragraph)는 동일한 문서 안에서도
 # 페이지마다 비결정적으로 갈리는 경우가 실제로 확인되었다(실제 반입송장
@@ -122,6 +124,63 @@ def find_delivery_date(raw_response: dict, page: int) -> str:
                 if match:
                     return match.group(0)
     return ""
+
+
+def find_vehicle_no(raw_response: dict, page: int) -> str:
+    for element in raw_response.get("elements", []):
+        if element.get("category") != "table" or element.get("page") != page:
+            continue
+        table_html = element.get("content", {}).get("html", "")
+        for row in _parse_table_rows(table_html):
+            joined = _collapse_spaces("".join(row))
+            if joined.startswith("차량번호"):
+                match = VEHICLE_NO_PATTERN.search(joined)
+                if match:
+                    return match.group(0)
+    return ""
+
+
+def find_invoice_no(raw_response: dict, page: int) -> str:
+    for element in raw_response.get("elements", []):
+        if element.get("category") != "table" or element.get("page") != page:
+            continue
+        table_html = element.get("content", {}).get("html", "")
+        for row in _parse_table_rows(table_html):
+            joined = _collapse_spaces("".join(row))
+            if joined.startswith("송장번호"):
+                match = INVOICE_NO_PATTERN.search(joined)
+                if match:
+                    return match.group(0)
+    return ""
+
+
+def build_capture_records(raw_response: dict, material_type: str = "철근") -> list[dict]:
+    records: list[dict] = []
+    for page in find_cover_pages(raw_response):
+        rows = extract_material_rows(raw_response, page)
+        if not rows:
+            continue
+        vendor = find_vendor_heading(raw_response, page)
+        delivery_date = find_delivery_date(raw_response, page)
+        vehicle_no = find_vehicle_no(raw_response, page)
+        invoice_no = find_invoice_no(raw_response, page)
+        for row in rows:
+            records.append(
+                {
+                    "material_type": material_type,
+                    "vendor": vendor,
+                    "delivery_date": delivery_date,
+                    "vehicle_no": vehicle_no,
+                    "invoice_no": invoice_no,
+                    "item_name": material_type,
+                    "spec": row["spec"],
+                    "unit": "",
+                    "quantity": None,
+                    "weight": row["weight_kg"],
+                    "note": row["note"],
+                }
+            )
+    return records
 
 
 def build_report_data(raw_responses: list[dict]) -> dict:

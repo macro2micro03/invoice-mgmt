@@ -9,7 +9,15 @@ def _table_html(headers, rows):
     return f"<table><thead>{thead}</thead><tbody>{tbody}</tbody></table>"
 
 
-def make_cover_response(page, vendor_heading, spec_weight_pairs, note="동국제강", delivery_date=None):
+def make_cover_response(
+    page,
+    vendor_heading,
+    spec_weight_pairs,
+    note="동국제강",
+    delivery_date=None,
+    vehicle_no=None,
+    invoice_no=None,
+):
     material_rows = [
         [spec, "0.560", str(weight_kg), str(weight_kg), note] for spec, weight_kg in spec_weight_pairs
     ]
@@ -30,6 +38,20 @@ def make_cover_response(page, vendor_heading, spec_weight_pairs, note="동국제
             "</tbody></table>"
         )
         elements.append({"page": page, "category": "table", "content": {"html": info_table_html, "text": ""}})
+    if vehicle_no:
+        vehicle_table_html = (
+            "<table><tbody>"
+            f"<tr><td>차 량 번 호</td><td>: {vehicle_no} 홍길동 010-1234-5678</td></tr>"
+            "</tbody></table>"
+        )
+        elements.append({"page": page, "category": "table", "content": {"html": vehicle_table_html, "text": ""}})
+    if invoice_no:
+        invoice_table_html = (
+            "<table><tbody>"
+            f"<tr><td>송 장 번 호</td><td>: {invoice_no} ( 1 회차 )</td></tr>"
+            "</tbody></table>"
+        )
+        elements.append({"page": page, "category": "table", "content": {"html": invoice_table_html, "text": ""}})
     return {"elements": elements}
 
 
@@ -283,3 +305,75 @@ def test_build_report_data_delivery_date_empty_when_not_found():
     raw = make_cover_response(1, "동경강업(주)", [("SHD10", 675000)])
     data = report_parser.build_report_data([raw])
     assert data["delivery_date"] == ""
+
+
+def test_find_vehicle_no_extracts_plate_number():
+    raw = make_cover_response(1, "동경강업(주)", [("SHD10", 9401)], vehicle_no="서울85바3204")
+    assert report_parser.find_vehicle_no(raw, page=1) == "서울85바3204"
+
+
+def test_find_vehicle_no_returns_empty_when_not_found():
+    raw = make_cover_response(1, "동경강업(주)", [("SHD10", 9401)])
+    assert report_parser.find_vehicle_no(raw, page=1) == ""
+
+
+def test_find_invoice_no_extracts_number():
+    raw = make_cover_response(1, "동경강업(주)", [("SHD10", 9401)], invoice_no="20260420-024")
+    assert report_parser.find_invoice_no(raw, page=1) == "20260420-024"
+
+
+def test_find_invoice_no_returns_empty_when_not_found():
+    raw = make_cover_response(1, "동경강업(주)", [("SHD10", 9401)])
+    assert report_parser.find_invoice_no(raw, page=1) == ""
+
+
+def test_build_capture_records_creates_one_record_per_spec():
+    raw = make_cover_response(
+        1,
+        "동경강업(주)",
+        [("SHD10", 9401), ("SHD13", 17082), ("UHD16", 1720)],
+        note="현대제철",
+        delivery_date="2026-04-20",
+        vehicle_no="서울85바3204",
+        invoice_no="20260420-024",
+    )
+    records = report_parser.build_capture_records(raw)
+    assert len(records) == 3
+    for record in records:
+        assert record["material_type"] == "철근"
+        assert record["item_name"] == "철근"
+        assert record["vendor"] == "동경강업(주)"
+        assert record["delivery_date"] == "2026-04-20"
+        assert record["vehicle_no"] == "서울85바3204"
+        assert record["invoice_no"] == "20260420-024"
+        assert record["unit"] == ""
+        assert record["quantity"] is None
+        assert record["note"] == "현대제철"
+
+    specs = {record["spec"] for record in records}
+    assert specs == {"SHD10", "SHD13", "UHD16"}
+    weights = {record["spec"]: record["weight"] for record in records}
+    assert weights["SHD10"] == 9401.0
+    assert weights["SHD13"] == 17082.0
+    assert weights["UHD16"] == 1720.0
+
+
+def test_build_capture_records_uses_custom_material_type():
+    raw = make_cover_response(1, "동경강업(주)", [("SHD10", 9401)])
+    records = report_parser.build_capture_records(raw, material_type="H형강")
+    assert records[0]["material_type"] == "H형강"
+    assert records[0]["item_name"] == "H형강"
+
+
+def test_build_capture_records_returns_empty_when_no_cover_page():
+    raw = {"elements": []}
+    assert report_parser.build_capture_records(raw) == []
+
+
+def test_build_capture_records_returns_empty_when_table_not_found():
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+        ]
+    }
+    assert report_parser.build_capture_records(raw) == []
