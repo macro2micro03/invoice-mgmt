@@ -13,11 +13,11 @@ export default function CapturePage() {
     setLoading(true)
     setError('')
     try {
-      const fields = await runOcr(file)
-      navigate('/edit', { state: { fields, photoFile: file } })
+      const { records } = await runOcr(file)
+      navigate('/edit', { state: { records, photoFile: file } })
     } catch (err) {
       setError('인식에 실패했습니다. 직접 입력해주세요.')
-      navigate('/edit', { state: { fields: {}, photoFile: file } })
+      navigate('/edit', { state: { records: [{}], photoFile: file } })
     } finally {
       setLoading(false)
     }
