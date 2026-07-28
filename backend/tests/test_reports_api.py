@@ -338,6 +338,51 @@ def test_create_report_from_delivery_date_400_when_no_records():
     assert "철근 기록이 없습니다" in response.json()["detail"]
 
 
+def test_create_report_from_delivery_date_forces_material_type_to_rebar(monkeypatch):
+    from app import excel as excel_module
+    from app import pdf as pdf_module
+
+    monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
+    monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")
+
+    client.post(
+        "/invoices",
+        data={
+            "material_type": "철근",
+            "vendor": "동경강업(주)",
+            "delivery_date": "2026-05-15",
+            "spec": "SHD10",
+            "weight": "1000",
+            "note": "동국제강",
+        },
+    )
+
+    response = client.post(
+        "/reports/material-inspection",
+        data={**_form_fields(), "material_type": "콘크리트", "delivery_date": "2026-05-15"},
+    )
+    assert response.status_code == 200
+
+    content_disposition = response.headers.get("content-disposition", "")
+    encoded_part = content_disposition.split("filename*=UTF-8''")[1]
+    decoded_filename = unquote(encoded_part)
+    assert decoded_filename.startswith("건축(자검) - 철근 - ")
+
+    workbook = load_workbook(BytesIO(response.content))
+    sheet = workbook.active
+    assert sheet["A9"].value == "철근"
+    assert sheet["C39"].value.startswith("철근")
+
+
+def test_create_report_400_when_delivery_date_malformed():
+    response = client.post(
+        "/reports/material-inspection",
+        data={**_form_fields(), "delivery_date": "not-a-date"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "반입일자 형식이 올바르지 않습니다 (YYYY-MM-DD)"
+
+
 def test_create_report_400_when_neither_files_nor_delivery_date_given():
     response = client.post(
         "/reports/material-inspection",

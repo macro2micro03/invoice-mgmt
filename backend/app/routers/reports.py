@@ -30,7 +30,13 @@ async def create_material_inspection_report(
     db: Session = Depends(get_db),
 ):
     if delivery_date:
-        parsed_date = date.fromisoformat(delivery_date)
+        try:
+            parsed_date = date.fromisoformat(delivery_date)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400, detail="반입일자 형식이 올바르지 않습니다 (YYYY-MM-DD)"
+            ) from error
+        material_type = CAPTURE_REPORT_MATERIAL_TYPE
         invoices = crud.list_invoices_by_material_and_date(db, CAPTURE_REPORT_MATERIAL_TYPE, parsed_date)
         if not invoices:
             raise HTTPException(status_code=400, detail="해당 날짜에 촬영된 철근 기록이 없습니다")
