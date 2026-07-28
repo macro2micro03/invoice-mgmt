@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { getInvoice, updateInvoice } from '../api.js'
 
 const FIELD_DEFS = [
@@ -18,6 +18,7 @@ const FIELD_DEFS = [
 
 export default function DetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [invoice, setInvoice] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -40,6 +41,9 @@ export default function DetailPage() {
     setSaving(true)
     try {
       await updateInvoice(id, invoice)
+      navigate('/search')
+    } catch (err) {
+      alert('저장에 실패했습니다. 다시 시도해주세요.')
     } finally {
       setSaving(false)
     }
