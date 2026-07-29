@@ -128,7 +128,7 @@ def fill_material_inspection_form(
         sheet[f"G{row}"] = None
 
     photo_sets = photo_sets or []
-    non_empty_sets = [s for s in photo_sets[:MAX_PHOTO_SETS] if s.get("top") or s.get("bottom")]
+    non_empty_sets = [s for s in photo_sets if s.get("top") or s.get("bottom")][:MAX_PHOTO_SETS]
 
     for index, photo_set in enumerate(non_empty_sets):
         if index > 0:

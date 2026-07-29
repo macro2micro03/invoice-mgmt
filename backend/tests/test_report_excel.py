@@ -219,3 +219,13 @@ def test_fill_material_inspection_form_caps_at_five_sets():
     wb = load_workbook(BytesIO(xlsx_bytes))
     sheet = wb.active
     assert len(sheet._images) == 5
+
+
+def test_fill_material_inspection_form_empty_leading_sets_do_not_crowd_out_later_photos():
+    photo_sets = [{"top": [], "bottom": []}] + [
+        {"top": [_photo_bytes()], "bottom": []} for _ in range(6)
+    ]
+    xlsx_bytes, _ = _fill(photo_sets=photo_sets)
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert len(sheet._images) == 5
