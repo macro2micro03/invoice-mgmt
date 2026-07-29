@@ -2,11 +2,20 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 
+from PIL import Image as _PILImage
+
 from openpyxl import load_workbook
 
 from app import report_excel
 
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "app" / "templates" / "material_inspection_form.xlsx"
+
+
+def _photo_bytes():
+    img = _PILImage.new("RGB", (100, 100), (0, 255, 0))
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def _make_specs():
@@ -154,17 +163,7 @@ def test_fill_material_inspection_form_reports_skipped_specs_beyond_capacity():
 
 
 def test_fill_material_inspection_form_inserts_top_and_bottom_photos():
-    from io import BytesIO as _BytesIO
-
-    from PIL import Image as _PILImage
-
-    def _photo_bytes():
-        img = _PILImage.new("RGB", (100, 100), (0, 255, 0))
-        buf = _BytesIO()
-        img.save(buf, format="PNG")
-        return buf.getvalue()
-
-    xlsx_bytes, _ = _fill(top_photos=[_photo_bytes(), _photo_bytes()], bottom_photos=[_photo_bytes()])
+    xlsx_bytes, _ = _fill(photo_sets=[{"top": [_photo_bytes(), _photo_bytes()], "bottom": [_photo_bytes()]}])
     wb = load_workbook(BytesIO(xlsx_bytes))
     sheet = wb.active
     assert len(sheet._images) == 3
@@ -175,3 +174,48 @@ def test_fill_material_inspection_form_no_photos_means_no_images():
     wb = load_workbook(BytesIO(xlsx_bytes))
     sheet = wb.active
     assert len(sheet._images) == 0
+
+
+def test_fill_material_inspection_form_single_set_matches_original_positions():
+    xlsx_bytes, _ = _fill(photo_sets=[{"top": [_photo_bytes()], "bottom": [_photo_bytes()]}])
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert sheet["A80"].value == "사 진 대 지"
+    assert sheet["H83"].value == "2026-03-31"
+    assert sheet["H86"].value == "2026-03-31"
+    assert len(sheet._images) == 2
+
+
+def test_fill_material_inspection_form_creates_additional_rows_for_second_set():
+    xlsx_bytes, _ = _fill(
+        photo_sets=[
+            {"top": [_photo_bytes()], "bottom": [_photo_bytes()]},
+            {"top": [_photo_bytes()], "bottom": [_photo_bytes()]},
+        ]
+    )
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert len(sheet._images) == 4
+    assert sheet["H89"].value == "2026-03-31"
+    assert sheet["H92"].value == "2026-03-31"
+
+
+def test_fill_material_inspection_form_skips_empty_sets():
+    xlsx_bytes, _ = _fill(
+        photo_sets=[
+            {"top": [], "bottom": []},
+            {"top": [_photo_bytes()], "bottom": []},
+        ]
+    )
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert len(sheet._images) == 1
+    assert sheet["H83"].value == "2026-03-31"
+
+
+def test_fill_material_inspection_form_caps_at_five_sets():
+    photo_sets = [{"top": [_photo_bytes()], "bottom": []} for _ in range(7)]
+    xlsx_bytes, _ = _fill(photo_sets=photo_sets)
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert len(sheet._images) == 5
