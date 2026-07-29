@@ -18,7 +18,7 @@ const COLUMNS = [
 
 export default function SearchPage() {
   const [vendor, setVendor] = useState('')
-  const [materialType, setMaterialType] = useState('')
+  const [materialType, setMaterialType] = useState('철근')
   const [results, setResults] = useState([])
   const navigate = useNavigate()
 
@@ -37,6 +37,7 @@ export default function SearchPage() {
           placeholder="자재종류"
           value={materialType}
           onChange={(e) => setMaterialType(e.target.value)}
+          disabled
         />
         <button className="btn btn-primary" onClick={handleSearch}>
           검색
