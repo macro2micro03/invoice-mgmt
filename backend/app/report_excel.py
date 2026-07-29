@@ -6,6 +6,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.pagebreak import Break
 
 from . import report_photos
 
@@ -135,6 +136,7 @@ def fill_material_inspection_form(
             target_start = PHOTO_SET_ROW_START + index * PHOTO_SET_BLOCK_ROWS
             sheet.insert_rows(target_start, amount=PHOTO_SET_BLOCK_ROWS)
             _copy_photo_set_block(sheet, PHOTO_SET_ROW_START, target_start)
+            sheet.row_breaks.append(Break(id=target_start - 1))
         top_anchor = PHOTO_SET_ROW_START + index * PHOTO_SET_BLOCK_ROWS
         bottom_anchor = top_anchor + 3
         sheet[f"H{top_anchor + 2}"] = delivery_date

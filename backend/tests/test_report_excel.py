@@ -199,6 +199,20 @@ def test_fill_material_inspection_form_creates_additional_rows_for_second_set():
     assert sheet["H89"].value == "2026-03-31"
     assert sheet["H92"].value == "2026-03-31"
 
+    # Regression coverage for _copy_photo_set_block: the duplicated block
+    # (rows 87-92) must carry over the same merged ranges, row heights,
+    # and cell values as the source block (rows 81-86).
+    coords = {m.coord for m in sheet.merged_cells.ranges}
+    assert {"A87:J87", "A90:J90", "H89:J89", "C88:E88"} <= coords
+    assert sheet.row_dimensions[87].height == sheet.row_dimensions[81].height
+    assert sheet.row_dimensions[88].height == sheet.row_dimensions[82].height
+    assert sheet["A88"].value == sheet["A82"].value == "공 종 명"
+
+    # Finding 1: a manual row break must be inserted immediately before
+    # each newly-duplicated block so printed pages don't drift out of
+    # phase with the block boundaries.
+    assert any(brk.id == 86 for brk in sheet.row_breaks.brk)
+
 
 def test_fill_material_inspection_form_skips_empty_sets():
     xlsx_bytes, _ = _fill(
