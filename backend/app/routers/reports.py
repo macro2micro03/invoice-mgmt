@@ -25,8 +25,16 @@ async def create_material_inspection_report(
     receiver: str = Form(...),
     files: List[UploadFile] = File(default=[]),
     delivery_date: Optional[str] = Form(None),
-    top_photos: List[UploadFile] = File(default=[]),
-    bottom_photos: List[UploadFile] = File(default=[]),
+    photo_set_1_top: List[UploadFile] = File(default=[]),
+    photo_set_1_bottom: List[UploadFile] = File(default=[]),
+    photo_set_2_top: List[UploadFile] = File(default=[]),
+    photo_set_2_bottom: List[UploadFile] = File(default=[]),
+    photo_set_3_top: List[UploadFile] = File(default=[]),
+    photo_set_3_bottom: List[UploadFile] = File(default=[]),
+    photo_set_4_top: List[UploadFile] = File(default=[]),
+    photo_set_4_bottom: List[UploadFile] = File(default=[]),
+    photo_set_5_top: List[UploadFile] = File(default=[]),
+    photo_set_5_bottom: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
     if delivery_date:
@@ -58,8 +66,18 @@ async def create_material_inspection_report(
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
-    top_photo_bytes = [await photo.read() for photo in top_photos]
-    bottom_photo_bytes = [await photo.read() for photo in bottom_photos]
+    photo_set_fields = [
+        (photo_set_1_top, photo_set_1_bottom),
+        (photo_set_2_top, photo_set_2_bottom),
+        (photo_set_3_top, photo_set_3_bottom),
+        (photo_set_4_top, photo_set_4_bottom),
+        (photo_set_5_top, photo_set_5_bottom),
+    ]
+    photo_sets = []
+    for top_files, bottom_files in photo_set_fields:
+        top_bytes = [await photo.read() for photo in top_files]
+        bottom_bytes = [await photo.read() for photo in bottom_files]
+        photo_sets.append({"top": top_bytes, "bottom": bottom_bytes})
 
     report_number = crud.get_next_report_number(db)
     document_number = f"건축(자검) - {material_type} - {report_number}호"
@@ -75,8 +93,7 @@ async def create_material_inspection_report(
         specs=report_data["specs"],
         vendor=report_data["vendor"],
         delivery_date=report_data["delivery_date"],
-        top_photos=top_photo_bytes,
-        bottom_photos=bottom_photo_bytes,
+        photo_sets=photo_sets,
     )
 
     warnings: List[str] = []

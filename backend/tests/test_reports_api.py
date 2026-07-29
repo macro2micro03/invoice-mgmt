@@ -276,14 +276,45 @@ def test_create_report_accepts_photo_uploads(monkeypatch):
         data=_form_fields(),
         files=[
             ("files", ("cover.jpg", b"fake-image-bytes", "image/jpeg")),
-            ("top_photos", ("top1.png", _photo_bytes(), "image/png")),
-            ("bottom_photos", ("bottom1.png", _photo_bytes(), "image/png")),
+            ("photo_set_1_top", ("top1.png", _photo_bytes(), "image/png")),
+            ("photo_set_1_bottom", ("bottom1.png", _photo_bytes(), "image/png")),
         ],
     )
     assert response.status_code == 200
     workbook = load_workbook(_BytesIO(response.content))
     sheet = workbook.active
     assert len(sheet._images) == 2
+
+
+def test_create_report_accepts_multiple_photo_sets(monkeypatch):
+    from io import BytesIO as _BytesIO
+
+    from PIL import Image as _PILImage
+
+    def _photo_bytes():
+        img = _PILImage.new("RGB", (100, 100), (0, 255, 0))
+        buf = _BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    monkeypatch.setattr(
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 1000)])
+    )
+
+    response = client.post(
+        "/reports/material-inspection",
+        data=_form_fields(),
+        files=[
+            ("files", ("cover.jpg", b"fake-image-bytes", "image/jpeg")),
+            ("photo_set_1_top", ("s1top.png", _photo_bytes(), "image/png")),
+            ("photo_set_2_top", ("s2top.png", _photo_bytes(), "image/png")),
+            ("photo_set_2_bottom", ("s2bottom.png", _photo_bytes(), "image/png")),
+        ],
+    )
+    assert response.status_code == 200
+    workbook = load_workbook(_BytesIO(response.content))
+    sheet = workbook.active
+    assert len(sheet._images) == 3
 
 
 def test_create_report_from_delivery_date_returns_xlsx(monkeypatch):
