@@ -73,7 +73,7 @@ export async function updateInvoice(id, fields) {
   return response.json()
 }
 
-export async function createMaterialInspectionReport(fields, files, topPhotos = [], bottomPhotos = [], deliveryDate = '') {
+export async function createMaterialInspectionReport(fields, files, photoSets = [], deliveryDate = '') {
   const formData = new FormData()
   Object.entries(fields).forEach(([key, value]) => {
     formData.append(key, value)
@@ -81,11 +81,15 @@ export async function createMaterialInspectionReport(fields, files, topPhotos = 
   files.forEach((file) => {
     formData.append('files', file)
   })
-  topPhotos.forEach((file) => {
-    formData.append('top_photos', file)
-  })
-  bottomPhotos.forEach((file) => {
-    formData.append('bottom_photos', file)
+  const nonEmptySets = photoSets.filter((set) => set.top.length > 0 || set.bottom.length > 0)
+  nonEmptySets.forEach((set, index) => {
+    const setNumber = index + 1
+    set.top.forEach((file) => {
+      formData.append(`photo_set_${setNumber}_top`, file)
+    })
+    set.bottom.forEach((file) => {
+      formData.append(`photo_set_${setNumber}_bottom`, file)
+    })
   })
   if (deliveryDate) {
     formData.append('delivery_date', deliveryDate)

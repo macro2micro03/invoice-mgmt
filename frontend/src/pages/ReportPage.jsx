@@ -2,6 +2,8 @@ import { useState } from 'react'
 import PhotoPicker from '../components/PhotoPicker.jsx'
 import { createMaterialInspectionReport } from '../api.js'
 
+const MAX_PHOTO_SETS = 5
+
 export default function ReportPage() {
   const [mode, setMode] = useState('file')
   const [projectName, setProjectName] = useState('서소문 재개발')
@@ -11,14 +13,25 @@ export default function ReportPage() {
   const [receiver, setReceiver] = useState('')
   const [files, setFiles] = useState([])
   const [deliveryDate, setDeliveryDate] = useState('')
-  const [topPhotos, setTopPhotos] = useState([])
-  const [bottomPhotos, setBottomPhotos] = useState([])
+  const [photoSets, setPhotoSets] = useState([{ top: [], bottom: [] }])
   const [error, setError] = useState('')
   const [warning, setWarning] = useState('')
   const [generating, setGenerating] = useState(false)
 
   const effectiveMaterialType = mode === 'date' ? '철근' : materialType
   const canSubmit = mode === 'file' ? files.length > 0 : !!deliveryDate
+
+  function handleAddPhotoSet() {
+    setPhotoSets((prev) => (prev.length < MAX_PHOTO_SETS ? [...prev, { top: [], bottom: [] }] : prev))
+  }
+
+  function handleSetTopChange(index, newFiles) {
+    setPhotoSets((prev) => prev.map((set, i) => (i === index ? { ...set, top: newFiles } : set)))
+  }
+
+  function handleSetBottomChange(index, newFiles) {
+    setPhotoSets((prev) => prev.map((set, i) => (i === index ? { ...set, bottom: newFiles } : set)))
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -35,8 +48,7 @@ export default function ReportPage() {
           receiver,
         },
         mode === 'file' ? files : [],
-        topPhotos,
-        bottomPhotos,
+        photoSets,
         mode === 'date' ? deliveryDate : '',
       )
       const url = URL.createObjectURL(blob)
@@ -129,18 +141,33 @@ export default function ReportPage() {
             />
           </div>
         )}
-        <PhotoPicker
-          label="사진대지 상단 사진 (선택, 여러 장 가능)"
-          accept="image/*"
-          files={topPhotos}
-          onFilesChange={setTopPhotos}
-        />
-        <PhotoPicker
-          label="사진대지 하단 사진 (선택, 여러 장 가능)"
-          accept="image/*"
-          files={bottomPhotos}
-          onFilesChange={setBottomPhotos}
-        />
+        {photoSets.map((set, index) => (
+          <div key={index} className="card item-card">
+            <p className="field-group-label">사진대지 {index + 1}세트</p>
+            <PhotoPicker
+              label={`사진대지 ${index + 1}세트 상단 사진 (선택, 여러 장 가능)`}
+              accept="image/*"
+              files={set.top}
+              onFilesChange={(newFiles) => handleSetTopChange(index, newFiles)}
+            />
+            <PhotoPicker
+              label={`사진대지 ${index + 1}세트 하단 사진 (선택, 여러 장 가능)`}
+              accept="image/*"
+              files={set.bottom}
+              onFilesChange={(newFiles) => handleSetBottomChange(index, newFiles)}
+            />
+          </div>
+        ))}
+        {photoSets.length < MAX_PHOTO_SETS && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleAddPhotoSet}
+            style={{ width: '100%', marginBottom: 16 }}
+          >
+            + 세트 추가
+          </button>
+        )}
         <button
           className="btn btn-primary"
           type="submit"
