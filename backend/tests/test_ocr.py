@@ -144,3 +144,15 @@ def test_normalize_tag_fields_missing_label_returns_empty_strings():
     fields = ocr.normalize_tag_fields("아무 관련 없는 텍스트")
     for field in ocr.TAG_FIELDS:
         assert fields[field] == ""
+
+
+def test_normalize_tag_fields_handles_table_concatenated_line():
+    # Upstage document-parse는 표(table) 요소를 <br> 없이 셀만 이어붙여
+    # HTML 태그를 제거하면 한 줄로 뭉쳐진다. 예: "현장명서소문 재개발직경13강도SD500"
+    # 이 경우 라벨 뒤 값이 다음 라벨의 값까지 탐욕적으로 삼키면 안 된다.
+    text = "현장명서소문 재개발직경13강도SD500길이12000"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_site_name"] == "서소문 재개발"
+    assert fields["tag_diameter"] == "13"
+    assert fields["tag_grade"] == "SD500"
+    assert fields["tag_length"] == "12000"

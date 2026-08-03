@@ -43,3 +43,11 @@ def test_match_tag_to_spec_diameter_with_unit_suffix_normalizes():
 
 def test_match_tag_to_spec_grade_case_insensitive():
     assert match_tag_to_spec("sd500", "13", "SHD13") == "matched"
+
+
+def test_match_tag_to_spec_grade_with_space_normalizes():
+    assert match_tag_to_spec("SD 500", "13", "SHD13") == "matched"
+
+
+def test_match_tag_to_spec_grade_with_hyphen_normalizes():
+    assert match_tag_to_spec("sd-500", "13", "SHD13") == "matched"

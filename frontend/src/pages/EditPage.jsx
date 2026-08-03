@@ -19,15 +19,43 @@ const ITEM_FIELD_DEFS = [
   ['note', '비고'],
 ]
 
-const TAG_FIELD_KEYS = [
-  'tag_site_name',
-  'tag_location',
-  'tag_diameter',
-  'tag_grade',
-  'tag_length',
-  'tag_quantity',
-  'tag_shape',
-]
+const GRADE_BY_PREFIX = { SHD: 'SD500', UHD: 'SD600' }
+
+function parseSpecGradeDiameter(spec) {
+  if (!spec) return [null, null]
+  const specUpper = spec.trim().toUpperCase()
+  for (const [prefix, grade] of Object.entries(GRADE_BY_PREFIX)) {
+    if (specUpper.startsWith(prefix)) {
+      const diameter = specUpper.slice(prefix.length).replace(/[^0-9]/g, '')
+      return [grade, diameter || null]
+    }
+  }
+  return [null, null]
+}
+
+function normalizeDiameter(value) {
+  if (!value) return null
+  const digits = value.replace(/[^0-9]/g, '')
+  return digits || null
+}
+
+function normalizeGrade(value) {
+  if (!value) return null
+  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return normalized || null
+}
+
+// backend app/spec_grade.py의 match_tag_to_spec와 동일한 로직을 프런트에서도
+// 재계산할 수 있도록 이식한 헬퍼. 저장 시 최종 판정은 서버가 다시 계산하지만,
+// 화면에 보이는 배너가 최신 spec/택 값을 반영하도록 로컬에서도 즉시 재계산한다.
+function matchTagToSpec(tagGrade, tagDiameter, spec) {
+  const [specGrade, specDiameter] = parseSpecGradeDiameter(spec)
+  const normTagGrade = normalizeGrade(tagGrade)
+  const normTagDiameter = normalizeDiameter(tagDiameter)
+  if (specGrade === null || normTagGrade === null || normTagDiameter === null) return null
+  if (specGrade === normTagGrade && specDiameter === normTagDiameter) return 'matched'
+  return 'mismatched'
+}
 
 function makeItem(record) {
   return {
@@ -71,7 +99,16 @@ export default function EditPage() {
   }
 
   function handleItemChange(index, key, value) {
-    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, [key]: value } : item)))
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item
+        const updated = { ...item, [key]: value }
+        if (key === 'spec' || key === 'tag_grade' || key === 'tag_diameter') {
+          updated.tag_match_status = matchTagToSpec(updated.tag_grade, updated.tag_diameter, updated.spec)
+        }
+        return updated
+      }),
+    )
   }
 
   function handleRemoveItem(index) {
@@ -82,6 +119,9 @@ export default function EditPage() {
     const file = event.target.files[0]
     if (!file) return
     setTagLoadingIndex(index)
+    // 재촬영이 실패하거나 결과가 도착하기 전까지 이전 사진의 판정 결과가
+    // 화면에 남아있지 않도록 즉시 초기화한다.
+    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, tag_match_status: null } : item)))
     try {
       const result = await runTagOcr(file, items[index].spec)
       setItems((prev) =>

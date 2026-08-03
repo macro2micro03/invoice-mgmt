@@ -27,7 +27,8 @@ def _normalize_diameter(value: str | None) -> str | None:
 def _normalize_grade(value: str | None) -> str | None:
     if not value:
         return None
-    return value.strip().upper()
+    normalized = re.sub(r"[^A-Z0-9]", "", value.strip().upper())
+    return normalized or None
 
 
 def match_tag_to_spec(tag_grade: str | None, tag_diameter: str | None, spec: str) -> str | None:

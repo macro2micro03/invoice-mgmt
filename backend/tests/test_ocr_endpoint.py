@@ -91,6 +91,40 @@ def test_tag_ocr_endpoint_without_spec_skips_match_status(monkeypatch):
     assert response.json()["tag_match_status"] is None
 
 
+def _tag_table_html():
+    return (
+        "<table><tbody>"
+        "<tr><td>현장명</td><td>서소문 재개발</td><td>직경</td><td>13</td></tr>"
+        "<tr><td>강도</td><td>SD500</td><td>길이</td><td>12000</td></tr>"
+        "</tbody></table>"
+    )
+
+
+def _tag_table_response():
+    return {
+        "elements": [
+            {"page": 1, "category": "table", "content": {"html": _tag_table_html(), "text": ""}},
+        ]
+    }
+
+
+def test_tag_ocr_endpoint_parses_table_shaped_response_without_concatenation(monkeypatch):
+    # 실제 택 사진은 Upstage에서 표(table)로 분류되기 쉽고, 표 셀은 <br> 없이
+    # 이어붙여져 "직경13강도SD500"처럼 한 줄로 뭉쳐진다. 탐욕적 정규식이면
+    # 직경 값이 "13강도SD500"처럼 다음 라벨의 값까지 삼켜버릴 수 있다.
+    monkeypatch.setattr(ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _tag_table_response())
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_diameter"] == "13"
+    assert body["tag_grade"] == "SD500"
+    assert body["tag_match_status"] == "matched"
+
+
 def test_tag_ocr_endpoint_returns_blank_fields_on_ocr_failure(monkeypatch):
     def raise_error(*args, **kwargs):
         raise RuntimeError("network error")

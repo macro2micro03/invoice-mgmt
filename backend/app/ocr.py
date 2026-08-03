@@ -33,6 +33,18 @@ TAG_FIELD_LABELS = {
 
 TAG_FIELDS = list(TAG_FIELD_LABELS.keys())
 
+# Upstage document-parse가 택을 표(table)로 인식하면 셀 사이에 <br>이 없어
+# HTML 태그를 걷어내고 나면 "직경13강도SD500"처럼 라벨과 값이 공백 없이
+# 한 줄로 이어붙는다. 값 캡처를 다음에 나올 라벨 직전까지로 제한해 그 값이
+# 다음 라벨의 값까지 삼키지 않도록 한다. 겹치는 라벨(예: "위치"가
+# "부재시공위치"의 부분 문자열)이 있으므로 긴 라벨부터 시도한다.
+_ALL_TAG_LABELS = sorted(
+    {label for labels in TAG_FIELD_LABELS.values() for label in labels},
+    key=len,
+    reverse=True,
+)
+_TAG_LABEL_LOOKAHEAD = "|".join(re.escape(label) for label in _ALL_TAG_LABELS)
+
 
 def call_upstage_ocr(image_bytes: bytes, filename: str = "invoice.jpg") -> dict:
     if not config.UPSTAGE_API_KEY:
@@ -117,7 +129,10 @@ def normalize_tag_fields(raw_text: str) -> dict:
             for label in labels:
                 if label not in line:
                     continue
-                match = re.search(rf"{label}\s*[:：]?\s*(.+)", line)
+                match = re.search(
+                    rf"{re.escape(label)}\s*[:：]?\s*(.+?)(?=\s*(?:{_TAG_LABEL_LOOKAHEAD})|$)",
+                    line,
+                )
                 if match:
                     value = match.group(1).strip()
                     if value and value != label:
