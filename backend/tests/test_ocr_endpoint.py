@@ -8,11 +8,11 @@ client = TestClient(app)
 
 def _cover_table_html():
     return (
-        "<table><thead><tr><td>직경</td><td>단위중량(kg/m)</td><td>발송중량(kg)</td>"
-        "<td>할증중량(kg)</td><td>비고</td></tr></thead><tbody>"
-        "<tr><td>SHD10</td><td>0.560</td><td>9401</td><td>9683</td><td>동국제강</td></tr>"
-        "<tr><td>SHD13</td><td>0.995</td><td>17082</td><td>17594</td><td>동국제강</td></tr>"
-        "<tr><td>총 합</td><td></td><td>26483</td><td></td><td></td></tr>"
+        "<table><thead><tr><td>철근경</td><td>가공중량,Ton</td><td>할증(%)</td>"
+        "<td>로스감안중량,Ton</td><td>커플러</td><td>비고</td></tr></thead><tbody>"
+        "<tr><td>SHD10</td><td>0.528</td><td>3</td><td>0.544</td><td>0</td><td>동국제강</td></tr>"
+        "<tr><td>SHD13</td><td>1.486</td><td>3</td><td>1.531</td><td>0</td><td>동국제강</td></tr>"
+        "<tr><td>계</td><td>2.014</td><td></td><td>2.075</td><td></td><td></td></tr>"
         "</tbody></table>"
     )
 
@@ -20,9 +20,13 @@ def _cover_table_html():
 def _cover_page_response():
     return {
         "elements": [
-            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
             {"page": 1, "category": "table", "content": {"html": _cover_table_html(), "text": ""}},
-            {"page": 1, "category": "heading1", "content": {"html": "<h1>동경강업(주)</h1>", "text": ""}},
+            {
+                "page": 1,
+                "category": "paragraph",
+                "content": {"html": "<p>공장명: 동경강업(주)</p>", "text": ""},
+            },
         ]
     }
 

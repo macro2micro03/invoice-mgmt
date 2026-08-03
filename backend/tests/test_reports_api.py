@@ -18,37 +18,32 @@ def _table_html(headers, rows):
 
 
 def _cover_response(spec_weight_pairs, delivery_date="2026-03-31"):
-    material_rows = [[spec, "0.560", str(kg), str(kg), "동국제강"] for spec, kg in spec_weight_pairs]
-    total_kg = sum(kg for _, kg in spec_weight_pairs)
+    material_rows = [[spec, "1.000", "3", str(weight), "0", "동국제강"] for spec, weight in spec_weight_pairs]
+    total = sum(weight for _, weight in spec_weight_pairs)
     table_html = _table_html(
-        ["직경", "단위중량(kg/m)", "발송중량(kg)", "할증중량(kg)", "비고"],
-        material_rows + [["총 합", "", str(total_kg), "", ""]],
+        ["철근경", "가공중량,Ton", "할증(%)", "로스감안중량,Ton", "커플러", "비고"],
+        material_rows + [["계", str(total), "", str(total), "", ""]],
     )
-    info_table_html = (
-        "<table><tbody>"
-        f"<tr><td>도</td><td>착 일</td><td>: {delivery_date} / {delivery_date} 연 락 처 : 테스트</td></tr>"
-        "</tbody></table>"
-    )
+    info_html = f"<p>납품일: {delivery_date}<br>공장명: 가짜상사(주)</p>"
     return {
         "elements": [
-            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
             {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
-            {"page": 1, "category": "heading1", "content": {"html": "<h1>가짜상사(주)</h1>", "text": ""}},
-            {"page": 1, "category": "table", "content": {"html": info_table_html, "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": info_html, "text": ""}},
         ]
     }
 
 
 def _cover_response_no_vendor(spec_weight_pairs):
-    material_rows = [[spec, "0.560", str(kg), str(kg), "동국제강"] for spec, kg in spec_weight_pairs]
-    total_kg = sum(kg for _, kg in spec_weight_pairs)
+    material_rows = [[spec, "1.000", "3", str(weight), "0", "동국제강"] for spec, weight in spec_weight_pairs]
+    total = sum(weight for _, weight in spec_weight_pairs)
     table_html = _table_html(
-        ["직경", "단위중량(kg/m)", "발송중량(kg)", "할증중량(kg)", "비고"],
-        material_rows + [["총 합", "", str(total_kg), "", ""]],
+        ["철근경", "가공중량,Ton", "할증(%)", "로스감안중량,Ton", "커플러", "비고"],
+        material_rows + [["계", str(total), "", str(total), "", ""]],
     )
     return {
         "elements": [
-            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
             {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
         ]
     }
@@ -57,8 +52,8 @@ def _cover_response_no_vendor(spec_weight_pairs):
 def _cover_response_no_table():
     return {
         "elements": [
-            {"page": 1, "category": "heading1", "content": {"html": "<h1>송장별 총괄 내역서</h1>", "text": ""}},
-            {"page": 1, "category": "heading1", "content": {"html": "<h1>가짜상사(주)</h1>", "text": ""}},
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>공장명: 가짜상사(주)</p>", "text": ""}},
         ]
     }
 
@@ -102,7 +97,7 @@ def test_create_report_400_when_no_cover_page_found(monkeypatch):
         files={"files": ("random.jpg", b"fake-image-bytes", "image/jpeg")},
     )
     assert response.status_code == 400
-    assert "송장별 총괄 내역서" in response.json()["detail"]
+    assert "철근 납품 확인서" in response.json()["detail"]
 
 
 def test_create_report_aggregates_multiple_uploaded_files(monkeypatch):
