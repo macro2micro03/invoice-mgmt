@@ -16,6 +16,13 @@ class InvoiceBase(BaseModel):
     quantity: Optional[float] = None
     weight: Optional[float] = None
     note: Optional[str] = None
+    tag_site_name: Optional[str] = None
+    tag_location: Optional[str] = None
+    tag_diameter: Optional[str] = None
+    tag_grade: Optional[str] = None
+    tag_length: Optional[str] = None
+    tag_quantity: Optional[str] = None
+    tag_shape: Optional[str] = None
 
 
 class InvoiceCreate(InvoiceBase):
@@ -29,6 +36,8 @@ class InvoiceUpdate(InvoiceBase):
 class InvoiceOut(InvoiceBase):
     id: int
     photo_path: Optional[str] = None
+    tag_photo_path: Optional[str] = None
+    tag_match_status: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

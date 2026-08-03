@@ -6,11 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config
+from . import config, migrations
 from .database import Base, engine
 from .routers import invoices, ocr, reports
 
 Base.metadata.create_all(bind=engine)
+migrations.run_migrations(engine)
 
 app = FastAPI(title="입고자재 송장관리 API")
 
