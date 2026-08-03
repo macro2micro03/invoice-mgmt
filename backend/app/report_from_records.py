@@ -30,5 +30,6 @@ def build_report_data_from_invoices(invoices, delivery_date: str) -> dict:
         "specs": specs,
         "vendor": ", ".join(dict.fromkeys(v for v in vendor_displays if v)),
         "skipped_pages": [],
+        "skipped_rows": 0,
         "delivery_date": delivery_date,
     }

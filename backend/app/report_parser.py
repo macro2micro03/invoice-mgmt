@@ -46,8 +46,12 @@ def _find_labeled_value(text: str, label: str) -> str:
     # 마지막 정보 라벨(예: 공장명) 뒤에 표 등 무관한 내용이 다음 줄로 이어지면
     # 일반 "$"(문자열 끝)는 절대 매치되지 않는다. MULTILINE으로 각 줄 끝에서도
     # "$"가 매치되게 해야 값이 올바르게 끊긴다.
+    # 라벨과 값 사이 공백은 [ \t]*로 제한해 줄바꿈을 건너뛰지 않게 하고, 캡처
+    # 그룹도 [^\n]+?로 제한한다. 그렇지 않으면 값이 비어있는 라벨(예: "공장명:"
+    # 바로 뒤에 줄바꿈)에서 \s*가 그 줄바꿈까지 삼켜버려 다음 줄의 무관한
+    # 내용(면책 문구 등)이 값으로 캡처되어 버린다.
     match = re.search(
-        rf"{_label_pattern(label)}\s*[:：]?\s*(.+?)(?=\s*(?:{_LABEL_LOOKAHEAD})|$)",
+        rf"{_label_pattern(label)}[ \t]*[:：]?[ \t]*([^\n:：]+?)(?=\s*(?:{_LABEL_LOOKAHEAD})|$)",
         text,
         re.MULTILINE,
     )
@@ -56,13 +60,40 @@ def _find_labeled_value(text: str, label: str) -> str:
     return re.sub(r"\s+", " ", match.group(1)).strip()
 
 
+_VENDOR_COMPANY_MARKERS = ("(주)", "㈜")
+_VENDOR_MAX_PLAUSIBLE_LENGTH = 30
+
+
+def _looks_like_vendor_name(value: str) -> bool:
+    if not value:
+        return False
+    if any(marker in value for marker in _VENDOR_COMPANY_MARKERS):
+        return True
+    return len(value) <= _VENDOR_MAX_PLAUSIBLE_LENGTH
+
+
 def _parse_table_rows(table_html: str) -> list[list[str]]:
     rows = []
-    for tr_match in re.finditer(r"<tr>(.*?)</tr>", table_html, re.DOTALL):
-        cells = re.findall(r"<td>(.*?)</td>", tr_match.group(1), re.DOTALL)
+    for tr_match in re.finditer(r"<tr[^>]*>(.*?)</tr>", table_html, re.DOTALL):
+        cells = re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr_match.group(1), re.DOTALL)
         cleaned = [html.unescape(re.sub(r"<[^>]+>", "", cell)).strip() for cell in cells]
         rows.append(cleaned)
     return rows
+
+
+def _page_text(raw_response: dict, page: int) -> str:
+    elements = raw_response.get("elements", [])
+    page_elements = [e for e in elements if e.get("page") == page]
+    if not page_elements:
+        return ocr.extract_text(raw_response)
+    lines = []
+    for element in page_elements:
+        content = element.get("content", {})
+        if isinstance(content, dict):
+            element_text = ocr._content_to_text(content)
+            if element_text:
+                lines.append(element_text)
+    return "\n".join(lines)
 
 
 def find_cover_pages(raw_response: dict) -> list[int]:
@@ -71,7 +102,7 @@ def find_cover_pages(raw_response: dict) -> list[int]:
         if element.get("category") not in TITLE_CATEGORIES:
             continue
         text = ocr._content_to_text(element.get("content", {}))
-        if _collapse_spaces(text.strip()) == COVER_TITLE:
+        if COVER_TITLE in _collapse_spaces(text.strip()):
             page = element.get("page")
             if page is not None:
                 pages.add(page)
@@ -84,26 +115,51 @@ def _find_material_table_html(raw_response: dict, page: int) -> str:
             continue
         table_html = element.get("content", {}).get("html", "")
         rows = _parse_table_rows(table_html)
-        if rows and any("철근경" in _collapse_spaces(cell) for cell in rows[0]):
+        if any(any("철근경" in _collapse_spaces(cell) for cell in row) for row in rows):
             return table_html
     return ""
 
 
+def _normalize_weight_text(text: str) -> str:
+    # 실제 Ton 값은 항상 1000 미만의 소수이므로, 쉼표는 천단위 구분자가 아니라
+    # OCR이 소수점을 쉼표로 잘못 인식한 경우(예: "0,544")일 가능성이 훨씬 높다.
+    match = re.fullmatch(r"(\d+),(\d{1,3})", text)
+    if match:
+        return f"{match.group(1)}.{match.group(2)}"
+    return text
+
+
+# 단일 배송 건의 로스감안중량으로 이 값을 넘으면 OCR 오인식(쉼표/자릿수 오류 등)
+# 가능성이 훨씬 높다고 보고 조용히 저장하는 대신 행 자체를 건너뛴다.
+_MAX_PLAUSIBLE_WEIGHT_TON = 100
+
+
 def extract_material_rows(raw_response: dict, page: int) -> list[dict]:
+    rows, _skipped = _extract_material_rows_with_skips(raw_response, page)
+    return rows
+
+
+def _extract_material_rows_with_skips(raw_response: dict, page: int) -> tuple[list[dict], int]:
     table_html = _find_material_table_html(raw_response, page)
     if not table_html:
-        return []
+        return [], 0
     rows = _parse_table_rows(table_html)
-    header = rows[0]
+    try:
+        header_idx, header = next(
+            (i, row) for i, row in enumerate(rows) if any("철근경" in _collapse_spaces(cell) for cell in row)
+        )
+    except StopIteration:
+        return [], 0
     try:
         spec_idx = next(i for i, cell in enumerate(header) if "철근경" in _collapse_spaces(cell))
         weight_idx = next(i for i, cell in enumerate(header) if "로스감안중량" in _collapse_spaces(cell))
     except StopIteration:
-        return []
+        return [], 0
     note_idx = next((i for i, cell in enumerate(header) if "비고" in _collapse_spaces(cell)), None)
 
     result = []
-    for row in rows[1:]:
+    skipped = 0
+    for row in rows[header_idx + 1 :]:
         if not row or spec_idx >= len(row):
             continue
         spec = row[spec_idx].strip()
@@ -111,40 +167,44 @@ def extract_material_rows(raw_response: dict, page: int) -> list[dict]:
             continue
         if weight_idx >= len(row):
             continue
-        weight_text = row[weight_idx].strip().replace(",", "")
+        weight_text = _normalize_weight_text(row[weight_idx].strip())
         if not weight_text:
             continue
         try:
             weight_ton = float(weight_text)
         except ValueError:
             continue
+        if weight_ton > _MAX_PLAUSIBLE_WEIGHT_TON:
+            skipped += 1
+            continue
         note = row[note_idx].strip() if note_idx is not None and note_idx < len(row) else ""
         result.append({"spec": spec, "weight_ton": weight_ton, "note": note})
-    return result
+    return result, skipped
 
 
 def find_vendor_heading(raw_response: dict, page: int) -> str:
-    text = ocr.extract_text(raw_response)
-    return _find_labeled_value(text, "공장명")
+    text = _page_text(raw_response, page)
+    value = _collapse_spaces(_find_labeled_value(text, "공장명"))
+    return value if _looks_like_vendor_name(value) else ""
 
 
 def find_delivery_date(raw_response: dict, page: int) -> str:
-    text = ocr.extract_text(raw_response)
-    value = _find_labeled_value(text, "납품일")
+    text = _page_text(raw_response, page)
+    value = _collapse_spaces(_find_labeled_value(text, "납품일"))
     match = DATE_PATTERN.search(value)
     return match.group(0) if match else ""
 
 
 def find_vehicle_no(raw_response: dict, page: int) -> str:
-    text = ocr.extract_text(raw_response)
-    value = _find_labeled_value(text, "차량번호")
+    text = _page_text(raw_response, page)
+    value = _collapse_spaces(_find_labeled_value(text, "차량번호"))
     match = VEHICLE_NO_PATTERN.search(value)
     return match.group(0) if match else ""
 
 
 def find_invoice_no(raw_response: dict, page: int) -> str:
-    text = ocr.extract_text(raw_response)
-    value = _find_labeled_value(text, "송장번호")
+    text = _page_text(raw_response, page)
+    value = _collapse_spaces(_find_labeled_value(text, "송장번호"))
     match = INVOICE_NO_PATTERN.search(value)
     return match.group(0) if match else ""
 
@@ -152,7 +212,7 @@ def find_invoice_no(raw_response: dict, page: int) -> str:
 def build_capture_records(raw_response: dict, material_type: str = "철근") -> list[dict]:
     records: list[dict] = []
     for page in find_cover_pages(raw_response)[:1]:
-        rows = extract_material_rows(raw_response, page)
+        rows, _skipped = _extract_material_rows_with_skips(raw_response, page)
         if not rows:
             continue
         vendor = find_vendor_heading(raw_response, page)
@@ -184,13 +244,15 @@ def build_report_data(raw_responses: list[dict]) -> dict:
     vendor = ""
     manufacturer = ""
     skipped_pages: list[int] = []
+    skipped_rows = 0
     cover_pages_found = 0
     delivery_dates: list[str] = []
 
     for raw_response in raw_responses:
         for page in find_cover_pages(raw_response):
             cover_pages_found += 1
-            rows = extract_material_rows(raw_response, page)
+            rows, page_skipped_rows = _extract_material_rows_with_skips(raw_response, page)
+            skipped_rows += page_skipped_rows
             if not rows:
                 skipped_pages.append(page)
                 continue
@@ -218,5 +280,6 @@ def build_report_data(raw_responses: list[dict]) -> dict:
         "specs": specs,
         "vendor": vendor_display,
         "skipped_pages": skipped_pages,
+        "skipped_rows": skipped_rows,
         "delivery_date": max(delivery_dates) if delivery_dates else "",
     }

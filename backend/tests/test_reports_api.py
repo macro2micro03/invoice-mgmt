@@ -73,7 +73,7 @@ XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 def test_create_report_returns_xlsx(monkeypatch):
     monkeypatch.setattr(
-        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 1000)])
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 0.544)])
     )
 
     response = client.post(
@@ -102,8 +102,8 @@ def test_create_report_400_when_no_cover_page_found(monkeypatch):
 
 def test_create_report_aggregates_multiple_uploaded_files(monkeypatch):
     responses = [
-        _cover_response([("SHD10", 675)]),
-        _cover_response([("SHD10", 2931)]),
+        _cover_response([("SHD10", 0.675)]),
+        _cover_response([("SHD10", 2.931)]),
     ]
     call_count = {"n": 0}
 
@@ -131,7 +131,7 @@ def test_create_report_is_protected_by_shared_password(monkeypatch):
 
     monkeypatch.setattr(config, "APP_PASSWORD", "secret123")
     monkeypatch.setattr(
-        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 1000)])
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 0.544)])
     )
 
     response = client.post(
@@ -144,7 +144,7 @@ def test_create_report_is_protected_by_shared_password(monkeypatch):
 
 def test_create_report_content_disposition_korean_filename(monkeypatch):
     monkeypatch.setattr(
-        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 1000)])
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 0.544)])
     )
 
     response = client.post(
@@ -168,7 +168,7 @@ def test_create_report_content_disposition_korean_filename(monkeypatch):
 
 def test_create_report_no_warning_header_when_everything_parses_cleanly(monkeypatch):
     monkeypatch.setattr(
-        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 1000)])
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 0.544)])
     )
 
     response = client.post(
@@ -184,7 +184,7 @@ def test_create_report_warns_when_vendor_not_recognized(monkeypatch):
     monkeypatch.setattr(
         ocr_module,
         "call_upstage_ocr",
-        lambda image_bytes, filename="x": _cover_response_no_vendor([("SHD10", 1000)]),
+        lambda image_bytes, filename="x": _cover_response_no_vendor([("SHD10", 0.544)]),
     )
 
     response = client.post(
@@ -202,7 +202,7 @@ def test_create_report_warns_when_vendor_not_recognized(monkeypatch):
 
 def test_create_report_warns_when_pages_skipped(monkeypatch):
     responses = [
-        _cover_response([("SHD10", 1000)]),
+        _cover_response([("SHD10", 0.544)]),
         _cover_response_no_table(),
     ]
     call_count = {"n": 0}
@@ -231,7 +231,7 @@ def test_create_report_warns_when_pages_skipped(monkeypatch):
 
 
 def test_create_report_warns_when_delivery_date_not_found(monkeypatch):
-    responses = [_cover_response_no_vendor([("SHD10", 1000)])]
+    responses = [_cover_response_no_vendor([("SHD10", 0.544)])]
 
     def fake_ocr(image_bytes, filename="x"):
         return responses[0]
@@ -263,7 +263,7 @@ def test_create_report_accepts_photo_uploads(monkeypatch):
         return buf.getvalue()
 
     monkeypatch.setattr(
-        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 1000)])
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 0.544)])
     )
 
     response = client.post(
@@ -293,7 +293,7 @@ def test_create_report_accepts_multiple_photo_sets(monkeypatch):
         return buf.getvalue()
 
     monkeypatch.setattr(
-        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 1000)])
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 0.544)])
     )
 
     response = client.post(

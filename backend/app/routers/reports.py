@@ -101,6 +101,10 @@ async def create_material_inspection_report(
         warnings.append(
             f"{len(report_data['skipped_pages'])}개 페이지에서 자재 내역 표를 찾지 못해 제외했습니다"
         )
+    if report_data.get("skipped_rows"):
+        warnings.append(
+            f"중량 값이 비정상적으로 큰 자재 행 {report_data['skipped_rows']}건을 제외했습니다 — 원본 문서를 확인해주세요"
+        )
     if not report_data["vendor"]:
         warnings.append("거래처(반입업체명)를 자동으로 인식하지 못했습니다 — 문서에서 직접 확인해주세요")
     if not report_data["delivery_date"]:

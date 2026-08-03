@@ -325,3 +325,243 @@ def test_build_report_data_delivery_date_empty_when_not_found():
     raw = make_cover_response(1, "(주)대건건철", [("SHD10", 0.544)])
     data = report_parser.build_report_data([raw])
     assert data["delivery_date"] == ""
+
+
+# --- Critical #1: rowspan/colspan/<th> must not silently yield zero rows ---
+
+
+def test_parse_table_rows_handles_rowspan_colspan_and_th():
+    table_html = (
+        '<table><tr><th rowspan="2">철근경</th><th colspan="2">로스감안중량,Ton</th></tr>'
+        '<tr class="data-row"><td rowspan="1">SHD10</td><td>0.544</td></tr></table>'
+    )
+    rows = report_parser._parse_table_rows(table_html)
+    assert rows == [["철근경", "로스감안중량,Ton"], ["SHD10", "0.544"]]
+
+
+def test_extract_material_rows_parses_table_with_attributes_and_th_cells():
+    table_html = (
+        '<table><tr class="hdr"><th>철근경</th><th>로스감안중량,Ton</th><th>비고</th></tr>'
+        '<tr><td rowspan="1">SHD10</td><td>0.544</td><td>동국제강</td></tr>'
+        '<tr><td>계</td><td>0.544</td><td></td></tr></table>'
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
+        ]
+    }
+    rows = report_parser.extract_material_rows(raw, page=1)
+    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강"}]
+
+
+# --- Critical #2: header row is not necessarily rows[0] ---
+
+
+def test_extract_material_rows_finds_header_when_info_rows_precede_it_in_same_table():
+    # Upstage가 정보 블록(공사명/납품일 등)과 자재 표를 하나의 테이블 요소로
+    # 합쳐버리는 경우, 헤더 행은 rows[0]이 아니라 몇 행 아래에 있다.
+    table_html = (
+        "<table>"
+        "<tr><td>공사명</td><td>삼성물산-서소문빌딩재개발 현장</td><td></td></tr>"
+        "<tr><td>납품일</td><td>2026-07-30</td><td></td></tr>"
+        "<tr><td>철근경</td><td>로스감안중량,Ton</td><td>비고</td></tr>"
+        "<tr><td>SHD10</td><td>0.544</td><td>동국제강</td></tr>"
+        "<tr><td>계</td><td>0.544</td><td></td></tr>"
+        "</table>"
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
+        ]
+    }
+    rows = report_parser.extract_material_rows(raw, page=1)
+    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강"}]
+
+
+# --- Critical #3: value-side letter-spacing must be collapsed before pattern matching ---
+
+
+def test_find_delivery_date_tolerates_letter_spaced_value():
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>납 품 일 : 2026 - 07 - 30</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_delivery_date(raw, page=1) == "2026-07-30"
+
+
+def test_find_invoice_no_tolerates_letter_spaced_value():
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>송 장 번 호 : 1178 - 001</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_invoice_no(raw, page=1) == "1178-001"
+
+
+def test_find_vehicle_no_tolerates_letter_spaced_value():
+    raw = {
+        "elements": [
+            {
+                "page": 1,
+                "category": "paragraph",
+                "content": {"html": "<p>차 량 번 호 : 서울 85바 3204</p>", "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_vehicle_no(raw, page=1) == "서울85바3204"
+
+
+def test_find_vendor_heading_collapses_letter_spaced_value():
+    raw = {
+        "elements": [
+            {
+                "page": 1,
+                "category": "paragraph",
+                "content": {"html": "<p>공 장 명 : ( 주 ) 대 건 건 철</p>", "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == "(주)대건건철"
+
+
+# --- Important #4: blank labeled value must not bleed into the next line ---
+
+
+def test_find_vendor_heading_returns_empty_when_blank_field_bleeds_into_disclaimer():
+    raw = {
+        "elements": [
+            {
+                "page": 1,
+                "category": "paragraph",
+                "content": {
+                    "html": "<p>공장명:<br>상차된 제품에 누락이 없음을 확인함</p>",
+                    "text": "",
+                },
+            },
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == ""
+
+
+# --- Important #5: per-page scoping must not silently use page 1's values for every page ---
+
+
+def _two_page_response():
+    page1 = make_cover_response(
+        1,
+        "가공장(주)",
+        [("SHD10", 0.544)],
+        delivery_date="2026-07-29",
+        invoice_no="1111-001",
+        vehicle_no="서울11가1111",
+    )
+    page2 = make_cover_response(
+        2,
+        "나공장(주)",
+        [("SHD13", 1.531)],
+        delivery_date="2026-07-30",
+        invoice_no="2222-002",
+        vehicle_no="서울22나2222",
+    )
+    return {"elements": page1["elements"] + page2["elements"]}
+
+
+def test_find_delivery_date_scoped_to_requested_page():
+    raw = _two_page_response()
+    assert report_parser.find_delivery_date(raw, page=1) == "2026-07-29"
+    assert report_parser.find_delivery_date(raw, page=2) == "2026-07-30"
+
+
+def test_find_vendor_heading_scoped_to_requested_page():
+    raw = _two_page_response()
+    assert report_parser.find_vendor_heading(raw, page=1) == "가공장(주)"
+    assert report_parser.find_vendor_heading(raw, page=2) == "나공장(주)"
+
+
+def test_find_invoice_no_scoped_to_requested_page():
+    raw = _two_page_response()
+    assert report_parser.find_invoice_no(raw, page=1) == "1111-001"
+    assert report_parser.find_invoice_no(raw, page=2) == "2222-002"
+
+
+def test_find_vehicle_no_scoped_to_requested_page():
+    raw = _two_page_response()
+    assert report_parser.find_vehicle_no(raw, page=1) == "서울11가1111"
+    assert report_parser.find_vehicle_no(raw, page=2) == "서울22나2222"
+
+
+def test_build_report_data_uses_genuinely_different_per_page_values():
+    raw = _two_page_response()
+    data = report_parser.build_report_data([raw])
+    assert data["delivery_date"] == "2026-07-30"
+    # 마지막으로 처리된 페이지(2)의 거래처가 반영되어야 한다(비고란 제조회사명은
+    # 두 페이지가 동일해 그대로 결합된다).
+    assert data["vendor"] == "나공장(주)/동국제강,현대제철"
+
+
+# --- Important #6: comma on the Ton weight column, and an implausible-weight sanity bound ---
+
+
+def test_extract_material_rows_treats_comma_as_decimal_point():
+    table_html = _table_html(
+        ["철근경", "가공중량,Ton", "할증(%)", "로스감안중량,Ton", "커플러", "비고"],
+        [["SHD10", "0,528", "3", "0,544", "0", "동국제강"]],
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
+        ]
+    }
+    rows = report_parser.extract_material_rows(raw, page=1)
+    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강"}]
+
+
+def test_extract_material_rows_rejects_implausibly_large_weight():
+    table_html = _table_html(
+        ["철근경", "가공중량,Ton", "할증(%)", "로스감안중량,Ton", "커플러", "비고"],
+        [["SHD10", "0.528", "3", "544.0", "0", "동국제강"]],
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
+        ]
+    }
+    rows = report_parser.extract_material_rows(raw, page=1)
+    assert rows == []
+
+
+def test_build_report_data_reports_skipped_rows_for_implausible_weight():
+    table_html = _table_html(
+        ["철근경", "가공중량,Ton", "할증(%)", "로스감안중량,Ton", "커플러", "비고"],
+        [
+            ["SHD10", "0.528", "3", "0.544", "0", "동국제강"],
+            ["SHD13", "150", "0", "150", "0", "동국제강"],
+        ],
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
+        ]
+    }
+    data = report_parser.build_report_data([raw])
+    specs = {row["spec"] for row in data["specs"]}
+    assert specs == {"SHD10"}
+    assert data["skipped_rows"] == 1
+
+
+# --- Important #7: title match must tolerate extra text around it ---
+
+
+def test_find_cover_pages_matches_title_with_extra_annotation_text():
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서 (제1차)</h1>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_cover_pages(raw) == [1]
