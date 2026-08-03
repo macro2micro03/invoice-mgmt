@@ -25,7 +25,21 @@ export async function runOcr(imageFile) {
   return response.json()
 }
 
-export async function createInvoice(fields, photoFile) {
+export async function runTagOcr(imageFile, spec) {
+  const formData = new FormData()
+  formData.append('file', imageFile)
+  if (spec) formData.append('spec', spec)
+  const response = await fetch(`${API_BASE}/ocr/tag`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  })
+  handleUnauthorized(response)
+  if (!response.ok) throw new Error('택 인식 요청 실패')
+  return response.json()
+}
+
+export async function createInvoice(fields, photoFile, tagPhotoFile) {
   const formData = new FormData()
   Object.entries(fields).forEach(([key, value]) => {
     if (value !== null && value !== undefined && value !== '') {
@@ -33,6 +47,7 @@ export async function createInvoice(fields, photoFile) {
     }
   })
   if (photoFile) formData.append('photo', photoFile)
+  if (tagPhotoFile) formData.append('tag_photo', tagPhotoFile)
   const response = await fetch(`${API_BASE}/invoices`, {
     method: 'POST',
     headers: authHeaders(),

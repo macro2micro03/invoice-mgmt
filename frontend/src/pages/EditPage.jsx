@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { createInvoice } from '../api.js'
+import { createInvoice, runTagOcr } from '../api.js'
 
 const COMMON_FIELD_DEFS = [
   ['vendor', '거래처'],
@@ -19,6 +19,37 @@ const ITEM_FIELD_DEFS = [
   ['note', '비고'],
 ]
 
+const TAG_FIELD_KEYS = [
+  'tag_site_name',
+  'tag_location',
+  'tag_diameter',
+  'tag_grade',
+  'tag_length',
+  'tag_quantity',
+  'tag_shape',
+]
+
+function makeItem(record) {
+  return {
+    material_type: record.material_type || '',
+    item_name: record.item_name || '',
+    spec: record.spec || '',
+    unit: record.unit || '',
+    quantity: record.quantity ?? '',
+    weight: record.weight ?? '',
+    note: record.note || '',
+    tag_site_name: '',
+    tag_location: '',
+    tag_diameter: '',
+    tag_grade: '',
+    tag_length: '',
+    tag_quantity: '',
+    tag_shape: '',
+    tag_match_status: null,
+    tagPhotoFile: null,
+  }
+}
+
 export default function EditPage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -31,18 +62,9 @@ export default function EditPage() {
     vehicle_no: initialRecords[0]?.vehicle_no || '',
     invoice_no: initialRecords[0]?.invoice_no || '',
   }))
-  const [items, setItems] = useState(() =>
-    initialRecords.map((record) => ({
-      material_type: record.material_type || '',
-      item_name: record.item_name || '',
-      spec: record.spec || '',
-      unit: record.unit || '',
-      quantity: record.quantity ?? '',
-      weight: record.weight ?? '',
-      note: record.note || '',
-    })),
-  )
+  const [items, setItems] = useState(() => initialRecords.map(makeItem))
   const [saving, setSaving] = useState(false)
+  const [tagLoadingIndex, setTagLoadingIndex] = useState(null)
 
   function handleCommonChange(key, value) {
     setCommon((prev) => ({ ...prev, [key]: value }))
@@ -56,12 +78,44 @@ export default function EditPage() {
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
+  async function handleTagPhotoChange(index, event) {
+    const file = event.target.files[0]
+    if (!file) return
+    setTagLoadingIndex(index)
+    try {
+      const result = await runTagOcr(file, items[index].spec)
+      setItems((prev) =>
+        prev.map((item, i) =>
+          i === index
+            ? {
+                ...item,
+                tag_site_name: result.tag_site_name || '',
+                tag_location: result.tag_location || '',
+                tag_diameter: result.tag_diameter || '',
+                tag_grade: result.tag_grade || '',
+                tag_length: result.tag_length || '',
+                tag_quantity: result.tag_quantity || '',
+                tag_shape: result.tag_shape || '',
+                tag_match_status: result.tag_match_status,
+                tagPhotoFile: file,
+              }
+            : item,
+        ),
+      )
+    } catch (err) {
+      alert('택 인식에 실패했습니다.')
+    } finally {
+      setTagLoadingIndex(null)
+    }
+  }
+
   async function handleSave() {
     setSaving(true)
     let saved = 0
     try {
       for (const item of items) {
-        await createInvoice({ ...common, ...item }, photoFile)
+        const { tagPhotoFile, tag_match_status, ...fields } = item
+        await createInvoice({ ...common, ...fields }, photoFile, tagPhotoFile)
         saved += 1
       }
       navigate('/search')
@@ -118,6 +172,24 @@ export default function EditPage() {
               />
             </div>
           ))}
+          <div className="field">
+            <label>택 촬영</label>
+            <label className="btn btn-secondary photo-picker-add">
+              {tagLoadingIndex === index ? '인식 중...' : item.tagPhotoFile ? '택 다시 촬영' : '📷 택 촬영'}
+              <input
+                className="photo-picker-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => handleTagPhotoChange(index, e)}
+              />
+            </label>
+          </div>
+          {item.tag_match_status === 'mismatched' && (
+            <p className="banner banner-warning">
+              택 규격({item.tag_grade} D{item.tag_diameter})이 송장 규격({item.spec})과 다릅니다
+            </p>
+          )}
         </div>
       ))}
       <button className="btn btn-primary" onClick={handleSave} disabled={saving || !canSave} style={{ width: '100%' }}>
