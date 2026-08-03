@@ -26,7 +26,15 @@ async def create_invoice(
     quantity: Optional[float] = Form(None),
     weight: Optional[float] = Form(None),
     note: Optional[str] = Form(None),
+    tag_site_name: Optional[str] = Form(None),
+    tag_location: Optional[str] = Form(None),
+    tag_diameter: Optional[str] = Form(None),
+    tag_grade: Optional[str] = Form(None),
+    tag_length: Optional[str] = Form(None),
+    tag_quantity: Optional[str] = Form(None),
+    tag_shape: Optional[str] = Form(None),
     photo: Optional[UploadFile] = File(None),
+    tag_photo: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
 ):
     data = schemas.InvoiceCreate(
@@ -41,6 +49,13 @@ async def create_invoice(
         quantity=quantity,
         weight=weight,
         note=note,
+        tag_site_name=tag_site_name,
+        tag_location=tag_location,
+        tag_diameter=tag_diameter,
+        tag_grade=tag_grade,
+        tag_length=tag_length,
+        tag_quantity=tag_quantity,
+        tag_shape=tag_shape,
     )
     invoice = crud.create_invoice(db, data)
 
@@ -53,6 +68,16 @@ async def create_invoice(
             db.refresh(invoice)
         except Exception:
             logger.exception("사진 저장 실패")
+
+    if tag_photo is not None:
+        try:
+            tag_image_bytes = await tag_photo.read()
+            tag_photo_path = photos.save_photo(tag_image_bytes, tag_photo.filename or "tag.jpg")
+            invoice.tag_photo_path = tag_photo_path
+            db.commit()
+            db.refresh(invoice)
+        except Exception:
+            logger.exception("택 사진 저장 실패")
 
     try:
         excel.append_invoice(invoice)

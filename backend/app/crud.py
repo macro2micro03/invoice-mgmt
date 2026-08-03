@@ -3,11 +3,21 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from . import models, schemas
+from . import models, schemas, spec_grade
 
 
-def create_invoice(db: Session, data: schemas.InvoiceCreate, photo_path: Optional[str] = None) -> models.Invoice:
-    invoice = models.Invoice(**data.model_dump(), photo_path=photo_path)
+def create_invoice(
+    db: Session,
+    data: schemas.InvoiceCreate,
+    photo_path: Optional[str] = None,
+    tag_photo_path: Optional[str] = None,
+) -> models.Invoice:
+    invoice = models.Invoice(
+        **data.model_dump(),
+        photo_path=photo_path,
+        tag_photo_path=tag_photo_path,
+        tag_match_status=spec_grade.match_tag_to_spec(data.tag_grade, data.tag_diameter, data.spec or ""),
+    )
     db.add(invoice)
     db.commit()
     db.refresh(invoice)
@@ -43,6 +53,7 @@ def update_invoice(db: Session, invoice_id: int, data: schemas.InvoiceUpdate) ->
         return None
     for key, value in data.model_dump().items():
         setattr(invoice, key, value)
+    invoice.tag_match_status = spec_grade.match_tag_to_spec(invoice.tag_grade, invoice.tag_diameter, invoice.spec or "")
     db.commit()
     db.refresh(invoice)
     return invoice

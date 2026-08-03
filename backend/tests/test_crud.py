@@ -60,3 +60,34 @@ def test_get_next_report_number_starts_at_one_and_increments(db_session):
     assert first == 1
     assert second == 2
     assert third == 3
+
+
+def test_create_invoice_computes_matched_tag_status(db_session):
+    created = crud.create_invoice(
+        db_session,
+        make_invoice_data(spec="SHD13", tag_grade="SD500", tag_diameter="13"),
+        tag_photo_path="photos/tag1.jpg",
+    )
+    assert created.tag_match_status == "matched"
+    assert created.tag_photo_path == "photos/tag1.jpg"
+
+
+def test_create_invoice_computes_mismatched_tag_status(db_session):
+    created = crud.create_invoice(
+        db_session, make_invoice_data(spec="SHD13", tag_grade="SD600", tag_diameter="13")
+    )
+    assert created.tag_match_status == "mismatched"
+
+
+def test_create_invoice_without_tag_info_leaves_status_none(db_session):
+    created = crud.create_invoice(db_session, make_invoice_data(spec="SHD13"))
+    assert created.tag_match_status is None
+
+
+def test_update_invoice_recomputes_tag_match_status(db_session):
+    created = crud.create_invoice(db_session, make_invoice_data(spec="SHD13"))
+    update_data = schemas.InvoiceUpdate(
+        **{**make_invoice_data(spec="SHD13").model_dump(), "tag_grade": "SD500", "tag_diameter": "13"}
+    )
+    updated = crud.update_invoice(db_session, created.id, update_data)
+    assert updated.tag_match_status == "matched"

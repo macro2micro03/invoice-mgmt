@@ -54,3 +54,25 @@ def test_update_invoice_changes_field(monkeypatch):
     )
     assert update_response.status_code == 200
     assert update_response.json()["vendor"] == "변경된업체"
+
+
+def test_create_invoice_with_tag_fields_and_photo_computes_match_status(monkeypatch):
+    monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
+    monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")
+
+    response = client.post(
+        "/invoices",
+        data={
+            "material_type": "철근",
+            "spec": "SHD13",
+            "tag_grade": "SD500",
+            "tag_diameter": "13",
+            "tag_site_name": "서소문 재개발",
+        },
+        files={"tag_photo": ("tag.jpg", io.BytesIO(b"fake-tag"), "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_match_status"] == "matched"
+    assert body["tag_photo_path"] is not None
+    assert body["tag_site_name"] == "서소문 재개발"
