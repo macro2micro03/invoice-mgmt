@@ -82,6 +82,8 @@
    - `STORAGE_DIR` = `/opt/render/project/src/backend/storage` (또는 원하는 경로)
 5. 배포 완료 후 발급되는 URL(예: `https://xxx.onrender.com`)을 기록해둡니다.
 
+**Python 버전 고정 필수:** `backend/.python-version`에 `3.12.7`을 명시해두었습니다. `psycopg2-binary`가 최신 Python(3.13/3.14)용 바이너리를 아직 지원하지 않아, Render가 기본값으로 최신 Python을 쓰면 서버가 시작하자마자 `ImportError`로 죽습니다. 만약 배포가 계속 실패하면 Render 대시보드 → Environment에서 `PYTHON_VERSION` = `3.12.7`을 직접 추가해 확실히 고정하세요.
+
 **주의:** 무료 티어는 재배포하거나 일정 시간 사용하지 않아 서버가 슬립 상태로 들어갔다가 다시 깨어날 때 로컬 디스크(DB/사진/엑셀/PDF)가 초기화될 수 있습니다. 중요한 데이터는 주기적으로 Master.xlsx를 직접 내려받아 백업하세요.
 
 ### 프론트엔드 — Vercel
