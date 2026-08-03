@@ -47,17 +47,34 @@ def _find_labeled_value(text: str, label: str) -> str:
     # 일반 "$"(문자열 끝)는 절대 매치되지 않는다. MULTILINE으로 각 줄 끝에서도
     # "$"가 매치되게 해야 값이 올바르게 끊긴다.
     # 라벨과 값 사이 공백은 [ \t]*로 제한해 줄바꿈을 건너뛰지 않게 하고, 캡처
-    # 그룹도 [^\n]+?로 제한한다. 그렇지 않으면 값이 비어있는 라벨(예: "공장명:"
-    # 바로 뒤에 줄바꿈)에서 \s*가 그 줄바꿈까지 삼켜버려 다음 줄의 무관한
-    # 내용(면책 문구 등)이 값으로 캡처되어 버린다.
+    # 그룹도 [^\n]*?로 제한한다(같은 줄만 본다).
+    # colon 매치 여부를 별도 그룹으로 남겨두는 이유: 라벨 뒤에 콜론까지 명시돼
+    # 있는데 값이 비어 있다면(예: "공장명:" 바로 뒤에 줄바꿈) 의도적으로 값이
+    # 비어 있는 것으로 보고 다음 줄로 넘어가지 않는다 — 그렇지 않으면 다음 줄의
+    # 무관한 내용(면책 문구 등)이 값으로 캡처되어 버린다(Important #4).
+    # 반대로 콜론조차 없이 라벨만 있고 같은 줄에 아무 값도 없다면, 라벨과 값이
+    # 서로 다른 줄/요소로 나뉜 레이아웃(예: Upstage가 라벨/값을 별개 요소로
+    # 반환해 "\n"으로만 이어붙는 경우)일 가능성이 높으므로, 바로 다음 한 줄만
+    # 확인해 값으로 사용한다. 그 이상은 절대 스캔하지 않는다.
     match = re.search(
-        rf"{_label_pattern(label)}[ \t]*[:：]?[ \t]*([^\n:：]+?)(?=\s*(?:{_LABEL_LOOKAHEAD})|$)",
+        rf"{_label_pattern(label)}[ \t]*(?P<colon>[:：])?[ \t]*(?P<value>[^\n:：]*?)(?=\s*(?:{_LABEL_LOOKAHEAD})|$)",
         text,
         re.MULTILINE,
     )
     if not match:
         return ""
-    return re.sub(r"\s+", " ", match.group(1)).strip()
+    value = match.group("value").strip()
+    if value:
+        return re.sub(r"\s+", " ", value).strip()
+    if match.group("colon"):
+        return ""
+    next_line_match = re.match(r"[ \t]*\r?\n([^\n]*)", text[match.end():])
+    if not next_line_match:
+        return ""
+    next_line = next_line_match.group(1).strip()
+    if not next_line:
+        return ""
+    return re.sub(r"\s+", " ", next_line).strip()
 
 
 _VENDOR_COMPANY_MARKERS = ("(주)", "㈜")
@@ -83,7 +100,11 @@ def _parse_table_rows(table_html: str) -> list[list[str]]:
 
 def _page_text(raw_response: dict, page: int) -> str:
     elements = raw_response.get("elements", [])
-    page_elements = [e for e in elements if e.get("page") == page]
+    # page 키가 아예 없거나 None인 요소(예: Upstage가 특정 페이지에 귀속시키지
+    # 못한 요약/폼 요소)는 어떤 페이지를 조회하든 함께 포함시킨다. 이 값들은
+    # 이 스코핑 기능(Important #5) 이전에는 문서 전체 텍스트 검색 대상이었으므로,
+    # page 번호가 명시적으로 다른 요소만 제외하고 나머지는 계속 포함해야 한다.
+    page_elements = [e for e in elements if e.get("page") in (page, None)]
     if not page_elements:
         return ocr.extract_text(raw_response)
     lines = []
@@ -96,13 +117,24 @@ def _page_text(raw_response: dict, page: int) -> str:
     return "\n".join(lines)
 
 
+# 제목 포함(containment) 매치를 허용하되, 너무 느슨하면 제목 문구를 그저
+# 인용하는 무관한 문단(예: "본 철근 납품 확인서는 2부 작성한다.")까지 표지
+# 페이지로 오인한다. 실제 제목 요소는 제목 자체 길이에 부가 주석("(제1차)"
+# 등) 정도만 더해진 짧은 텍스트이므로, 배수를 넘는 긴 텍스트는 제외한다.
+_COVER_TITLE_MAX_CONTAINMENT_LENGTH = len(COVER_TITLE) * 3
+
+
 def find_cover_pages(raw_response: dict) -> list[int]:
     pages = set()
     for element in raw_response.get("elements", []):
         if element.get("category") not in TITLE_CATEGORIES:
             continue
         text = ocr._content_to_text(element.get("content", {}))
-        if COVER_TITLE in _collapse_spaces(text.strip()):
+        collapsed = _collapse_spaces(text.strip())
+        if (
+            COVER_TITLE in collapsed
+            and len(collapsed) <= _COVER_TITLE_MAX_CONTAINMENT_LENGTH
+        ):
             page = element.get("page")
             if page is not None:
                 pages.add(page)

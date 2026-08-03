@@ -446,6 +446,47 @@ def test_find_vendor_heading_returns_empty_when_blank_field_bleeds_into_disclaim
     assert report_parser.find_vendor_heading(raw, page=1) == ""
 
 
+# --- Round 2 regression: label alone on its own line, value on the NEXT line ---
+
+
+def test_find_vendor_heading_extracts_value_split_onto_next_line():
+    # Upstage가 라벨과 값을 서로 다른 요소로 나눠 반환하는 경우
+    # (ocr.extract_text가 요소들을 "\n"으로 이어붙이므로 라벨 줄에는
+    # 아무 값도 없고, 값은 바로 다음 줄에 온다). 콜론이 전혀 없다는 점이
+    # Important #4의 "라벨: <br>무관한 문단" 사례와 다르다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>공장명</p>", "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>(주)대건건철</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == "(주)대건건철"
+
+
+def test_find_delivery_date_extracts_value_split_onto_next_line():
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>납품일</p>", "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>2026-07-30</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_delivery_date(raw, page=1) == "2026-07-30"
+
+
+def test_find_labeled_values_split_across_lines_for_two_labels_in_sequence():
+    # 두 개의 라벨이 연달아 각각 다음 줄에 값을 가진 경우도 모두 추출돼야 한다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>공장명</p>", "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>(주)대건건철</p>", "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>납품일</p>", "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>2026-07-30</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == "(주)대건건철"
+    assert report_parser.find_delivery_date(raw, page=1) == "2026-07-30"
+
+
 # --- Important #5: per-page scoping must not silently use page 1's values for every page ---
 
 
@@ -565,3 +606,44 @@ def test_find_cover_pages_matches_title_with_extra_annotation_text():
         ]
     }
     assert report_parser.find_cover_pages(raw) == [1]
+
+
+def test_find_cover_pages_ignores_long_boilerplate_paragraph_quoting_the_title():
+    # 제목 문구를 인용하는 무관한 안내 문단(예: 발행 부수 안내)까지 표지
+    # 페이지로 잘못 인식되면 안 된다 — 실제 자재 내역 표가 없는 페이지가
+    # skipped_pages에 들어가 사용자에게 잘못된 경고가 뜬다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
+            {
+                "page": 2,
+                "category": "paragraph",
+                "content": {
+                    "html": (
+                        "<p>본 철근 납품 확인서는 납품 완료 후 2부를 작성하여 발주처와 "
+                        "협력업체가 각각 1부씩 보관하는 것을 원칙으로 한다.</p>"
+                    ),
+                    "text": "",
+                },
+            },
+        ]
+    }
+    assert report_parser.find_cover_pages(raw) == [1]
+
+
+# --- Round 2 new issue: page-scoped text must not drop page-less elements ---
+
+
+def test_page_scoped_finders_include_elements_with_no_page_key():
+    # OCR 응답에 page 번호가 아예 없는 요소(예: Upstage가 특정 페이지에
+    # 귀속시키지 못한 요약/폼 요소)가 섞여 있어도, 페이지 스코프 검색에서
+    # 완전히 제외되면 안 된다 — Important #5 이전에는 문서 전체 텍스트에서
+    # 찾았으므로 이런 요소도 정상적으로 검색됐었다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>납품일: 2026-07-29</p>", "text": ""}},
+            {"category": "paragraph", "content": {"html": "<p>공장명: (주)대건건철</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_delivery_date(raw, page=1) == "2026-07-29"
+    assert report_parser.find_vendor_heading(raw, page=1) == "(주)대건건철"
