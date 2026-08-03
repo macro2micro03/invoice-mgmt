@@ -40,6 +40,34 @@ _LABEL_LOOKAHEAD = "|".join(
     _label_pattern(label) for label in sorted(_INFO_LABELS, key=len, reverse=True)
 )
 
+# 라벨과 값이 서로 다른 줄로 나뉜 레이아웃(round 2)에서 "바로 다음 줄"을 값
+# 후보로 받아들이기 전에 검증하는 데 쓰는 패턴들.
+# - _NEXT_LINE_LABEL_START_PATTERN: 다음 줄이 그 자체로 또 다른 서식 라벨(예:
+#   "납품일: ...")로 시작하면, 그 줄은 절대 값이 될 수 없다(1b).
+# - _SENTENCE_FINAL_PATTERN: 다음 줄이 "...확인함"/"...한다." 처럼 문장으로
+#   끝나면 면책 문구 등 무관한 문단일 가능성이 높다(1a).
+# 짧은 라벨 값(회사명/날짜/차량번호 등)은 공백으로 나뉜 단어가 많아야 1~2개인
+# 반면, 표 헤더 행이나 안내 문장은 공백으로 구분된 단어가 여러 개인 경우가
+# 대부분이므로 단어 수도 함께 확인한다.
+_NEXT_LINE_LABEL_START_PATTERN = re.compile(rf"^(?:{_LABEL_LOOKAHEAD})")
+_SENTENCE_FINAL_PATTERN = re.compile(r"(다|함)[.]?$")
+_LABEL_VALUE_MAX_PLAUSIBLE_LENGTH = 30
+_LABEL_VALUE_MAX_PLAUSIBLE_WORDS = 2
+
+
+def _looks_like_plausible_label_value(value: str) -> bool:
+    if not value:
+        return False
+    if len(value) > _LABEL_VALUE_MAX_PLAUSIBLE_LENGTH:
+        return False
+    if _SENTENCE_FINAL_PATTERN.search(value):
+        return False
+    if _NEXT_LINE_LABEL_START_PATTERN.match(value):
+        return False
+    if len(value.split()) > _LABEL_VALUE_MAX_PLAUSIBLE_WORDS:
+        return False
+    return True
+
 
 def _find_labeled_value(text: str, label: str) -> str:
     # re.MULTILINE: extract_text()가 요소들을 "\n"으로 이어붙이기 때문에,
@@ -74,7 +102,10 @@ def _find_labeled_value(text: str, label: str) -> str:
     next_line = next_line_match.group(1).strip()
     if not next_line:
         return ""
-    return re.sub(r"\s+", " ", next_line).strip()
+    next_line = re.sub(r"\s+", " ", next_line).strip()
+    if not _looks_like_plausible_label_value(next_line):
+        return ""
+    return next_line
 
 
 _VENDOR_COMPANY_MARKERS = ("(주)", "㈜")
@@ -119,9 +150,25 @@ def _page_text(raw_response: dict, page: int) -> str:
 
 # 제목 포함(containment) 매치를 허용하되, 너무 느슨하면 제목 문구를 그저
 # 인용하는 무관한 문단(예: "본 철근 납품 확인서는 2부 작성한다.")까지 표지
-# 페이지로 오인한다. 실제 제목 요소는 제목 자체 길이에 부가 주석("(제1차)"
-# 등) 정도만 더해진 짧은 텍스트이므로, 배수를 넘는 긴 텍스트는 제외한다.
-_COVER_TITLE_MAX_CONTAINMENT_LENGTH = len(COVER_TITLE) * 3
+# 페이지로 오인한다. 길이 기준선(예: "제목 길이의 N배")은 짧은 상투적 문장이
+# 긴 정당한 제목 주석보다 더 짧을 수 있어 어느 쪽으로도 잘못될 수 있으므로,
+# 길이 대신 "모양"으로 판별한다: 실제 제목 요소는 항상 제목으로 "시작"하고,
+# 제목 뒤에는 짧은 괄호/날짜 주석 정도만 붙는다 — 마침표나 "...다."/"...함"
+# 처럼 문장으로 끝나는 어미가 붙지 않는다. 반면 제목을 그저 인용하는 문장은
+# 제목이 문두에 오지 않거나(예: "본 철근 납품 확인서는...") 문장 어미로
+# 끝난다.
+_SENTENCE_FINAL_ANNOTATION_PATTERN = re.compile(r"(다|함)$")
+
+
+def _looks_like_cover_title_annotation(collapsed: str) -> bool:
+    if not collapsed.startswith(COVER_TITLE):
+        return False
+    remainder = collapsed[len(COVER_TITLE):]
+    if "." in remainder:
+        return False
+    if _SENTENCE_FINAL_ANNOTATION_PATTERN.search(remainder):
+        return False
+    return True
 
 
 def find_cover_pages(raw_response: dict) -> list[int]:
@@ -131,10 +178,7 @@ def find_cover_pages(raw_response: dict) -> list[int]:
             continue
         text = ocr._content_to_text(element.get("content", {}))
         collapsed = _collapse_spaces(text.strip())
-        if (
-            COVER_TITLE in collapsed
-            and len(collapsed) <= _COVER_TITLE_MAX_CONTAINMENT_LENGTH
-        ):
+        if _looks_like_cover_title_annotation(collapsed):
             page = element.get("page")
             if page is not None:
                 pages.add(page)

@@ -647,3 +647,92 @@ def test_page_scoped_finders_include_elements_with_no_page_key():
     }
     assert report_parser.find_delivery_date(raw, page=1) == "2026-07-29"
     assert report_parser.find_vendor_heading(raw, page=1) == "(주)대건건철"
+
+
+# --- Round 3, item 1: next-line fallback must validate the candidate value ---
+
+
+def test_find_vendor_heading_returns_empty_when_no_colon_label_bleeds_into_disclaimer():
+    # 1a: 콜론이 아예 없는 라벨 뒤에 무관한 면책 문구가 다음 줄로 오는 경우도
+    # Important #4와 동일하게 빈 값을 반환해야 한다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>공장명</p>", "text": ""}},
+            {
+                "page": 1,
+                "category": "paragraph",
+                "content": {"html": "<p>상차된 제품에 누락이 없음을 확인함</p>", "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == ""
+
+
+def test_find_vendor_heading_returns_empty_when_next_line_is_another_label():
+    # 1b: 다음 줄이 또 다른 서식 라벨(예: "납품일: ...")이면 그 값을 그대로
+    # 삼키면 안 된다 — 라벨 줄은 절대 값이 될 수 없다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>공장명</p>", "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>납품일: 2026-07-30</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == ""
+
+
+def test_find_vendor_heading_returns_empty_when_next_line_is_table_header_text():
+    # 1b: 다음 줄이 자재 내역 표의 헤더 행이어도 값으로 삼키면 안 된다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>공장명</p>", "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>철근경 가공중량 할증</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == ""
+
+
+def test_find_vendor_heading_still_extracts_value_split_onto_next_line():
+    # 라운드 2에서 고친 정상 케이스는 계속 동작해야 한다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>공장명</p>", "text": ""}},
+            {"page": 1, "category": "paragraph", "content": {"html": "<p>(주)대건건철</p>", "text": ""}},
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == "(주)대건건철"
+
+
+# --- Round 3, item 2: title-containment guard must be shape-based, not length-based ---
+
+
+def test_find_cover_pages_rejects_exact_reported_boilerplate_sentence():
+    # 라운드 2 원본 리포트의 실제 예문(길이 16자, 21자 기준선 밑) 자체가
+    # 여전히 표지로 오탐지되던 문제. 문장 전체가 아니라 제목이 반드시
+    # 문두에 와야 한다는 형태 기반 판별로 고쳐야 한다.
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
+            {
+                "page": 2,
+                "category": "paragraph",
+                "content": {"html": "<p>본 철근 납품 확인서는 2부 작성한다.</p>", "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_cover_pages(raw) == [1]
+
+
+def test_find_cover_pages_accepts_long_legitimate_title_annotation():
+    # 21자 기준선을 살짝 넘는 정당한 제목 주석(날짜+회차)까지 거부되면 안
+    # 된다 — 거부되면 그 페이지의 자재 내역 표가 아예 파싱되지 않는 새로운
+    # 데이터 유실 경로가 생긴다.
+    raw = {
+        "elements": [
+            {
+                "page": 1,
+                "category": "heading1",
+                "content": {"html": "<h1>철근 납품 확인서 (2026-07-30 제1차)</h1>", "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_cover_pages(raw) == [1]
