@@ -60,3 +60,45 @@ def test_ocr_endpoint_returns_multiple_records_for_cover_page_document(monkeypat
     for record in body["records"]:
         assert record["vendor"] == "동경강업(주)"
         assert record["material_type"] == "철근"
+
+
+def test_tag_ocr_endpoint_returns_parsed_fields_and_match_status(monkeypatch):
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_ocr",
+        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD500\n"},
+    )
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_diameter"] == "13"
+    assert body["tag_grade"] == "SD500"
+    assert body["tag_match_status"] == "matched"
+
+
+def test_tag_ocr_endpoint_without_spec_skips_match_status(monkeypatch):
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_ocr",
+        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD500\n"},
+    )
+    response = client.post("/ocr/tag", files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")})
+    assert response.status_code == 200
+    assert response.json()["tag_match_status"] is None
+
+
+def test_tag_ocr_endpoint_returns_blank_fields_on_ocr_failure(monkeypatch):
+    def raise_error(*args, **kwargs):
+        raise RuntimeError("network error")
+
+    monkeypatch.setattr(ocr_module, "call_upstage_ocr", raise_error)
+    response = client.post("/ocr/tag", files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")})
+    assert response.status_code == 200
+    body = response.json()
+    for field in ocr_module.TAG_FIELDS:
+        assert body[field] == ""
+    assert body["tag_match_status"] is None

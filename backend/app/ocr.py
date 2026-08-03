@@ -21,6 +21,18 @@ FIELD_LABELS = {
 
 STANDARD_FIELDS = list(FIELD_LABELS.keys())
 
+TAG_FIELD_LABELS = {
+    "tag_site_name": ["현장명", "현장"],
+    "tag_location": ["부재시공위치", "시공위치", "위치"],
+    "tag_diameter": ["직경", "호칭경"],
+    "tag_grade": ["강도", "강종"],
+    "tag_length": ["길이"],
+    "tag_quantity": ["수량"],
+    "tag_shape": ["가공형상", "형상"],
+}
+
+TAG_FIELDS = list(TAG_FIELD_LABELS.keys())
+
 
 def call_upstage_ocr(image_bytes: bytes, filename: str = "invoice.jpg") -> dict:
     if not config.UPSTAGE_API_KEY:
@@ -90,5 +102,26 @@ def normalize_fields(raw_text: str) -> dict:
             if material in result["item_name"]:
                 result["material_type"] = material
                 break
+
+    return result
+
+
+def normalize_tag_fields(raw_text: str) -> dict:
+    result = {field: "" for field in TAG_FIELDS}
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+
+    for line in lines:
+        for field, labels in TAG_FIELD_LABELS.items():
+            if result[field]:
+                continue
+            for label in labels:
+                if label not in line:
+                    continue
+                match = re.search(rf"{label}\s*[:：]?\s*(.+)", line)
+                if match:
+                    value = match.group(1).strip()
+                    if value and value != label:
+                        result[field] = value
+                        break
 
     return result

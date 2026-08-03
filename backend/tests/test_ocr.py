@@ -118,3 +118,29 @@ def test_call_upstage_ocr_raises_without_api_key(monkeypatch):
         assert False, "should have raised"
     except RuntimeError:
         pass
+
+
+def test_normalize_tag_fields_extracts_labeled_values():
+    text = (
+        "현장명: 서소문 재개발\n"
+        "부재시공위치: 지하 2층 슬라브\n"
+        "직경: 13\n"
+        "강도: SD500\n"
+        "길이: 12000\n"
+        "수량: 50\n"
+        "가공형상: 직선\n"
+    )
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_site_name"] == "서소문 재개발"
+    assert fields["tag_location"] == "지하 2층 슬라브"
+    assert fields["tag_diameter"] == "13"
+    assert fields["tag_grade"] == "SD500"
+    assert fields["tag_length"] == "12000"
+    assert fields["tag_quantity"] == "50"
+    assert fields["tag_shape"] == "직선"
+
+
+def test_normalize_tag_fields_missing_label_returns_empty_strings():
+    fields = ocr.normalize_tag_fields("아무 관련 없는 텍스트")
+    for field in ocr.TAG_FIELDS:
+        assert fields[field] == ""
