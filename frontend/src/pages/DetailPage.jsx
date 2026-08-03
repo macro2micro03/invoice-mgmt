@@ -16,6 +16,22 @@ const FIELD_DEFS = [
   ['note', '비고'],
 ]
 
+const TAG_FIELD_DEFS = [
+  ['tag_site_name', '택 현장명'],
+  ['tag_location', '택 부재시공위치'],
+  ['tag_diameter', '택 직경'],
+  ['tag_grade', '택 강도'],
+  ['tag_length', '택 길이'],
+  ['tag_quantity', '택 수량'],
+  ['tag_shape', '택 가공형상'],
+]
+
+function tagMatchLabel(status) {
+  if (status === 'matched') return '일치'
+  if (status === 'mismatched') return '불일치'
+  return '택 미촬영'
+}
+
 export default function DetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -56,6 +72,23 @@ export default function DetailPage() {
         {invoice.photo_path && (
           <img className="photo-preview" src={`/storage/${invoice.photo_path}`} alt="원본 사진" />
         )}
+        {invoice.tag_photo_path && (
+          <img className="photo-preview" src={`/storage/${invoice.tag_photo_path}`} alt="택 사진" />
+        )}
+        <p className="field-group-label">
+          택 대조 결과: {tagMatchLabel(invoice.tag_match_status)}
+        </p>
+        {invoice.tag_match_status === 'mismatched' && (
+          <p className="banner banner-warning">
+            택 규격({invoice.tag_grade} D{invoice.tag_diameter})이 송장 규격({invoice.spec})과 다릅니다
+          </p>
+        )}
+        {TAG_FIELD_DEFS.map(([key, label]) => (
+          <div key={key} className="field">
+            <label>{label}</label>
+            <input className="input" type="text" value={invoice[key] || ''} readOnly disabled />
+          </div>
+        ))}
         {FIELD_DEFS.map(([key, label]) => (
           <div key={key} className="field">
             <label>{label}</label>
