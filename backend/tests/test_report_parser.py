@@ -91,8 +91,8 @@ def test_extract_material_rows_parses_table_and_skips_total_row():
     raw = make_cover_response(1, "(주)대건건철", [("SHD10", 0.544), ("SHD13", 1.531)])
     rows = report_parser.extract_material_rows(raw, page=1)
     assert rows == [
-        {"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강,현대제철"},
-        {"spec": "SHD13", "weight_ton": 1.531, "note": "동국제강,현대제철"},
+        {"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강,현대제철", "coupler_count": 0.0},
+        {"spec": "SHD13", "weight_ton": 1.531, "note": "동국제강,현대제철", "coupler_count": 0.0},
     ]
 
 
@@ -119,7 +119,7 @@ def test_extract_material_rows_skips_total_row_labeled_gye():
         ]
     }
     rows = report_parser.extract_material_rows(raw, page=1)
-    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강"}]
+    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강", "coupler_count": 0.0}]
 
 
 def test_extract_material_rows_skips_total_row_labeled_chonghap_or_hapgye():
@@ -151,7 +151,7 @@ def test_extract_material_rows_uses_header_lookup_not_fixed_column_order():
         ]
     }
     rows = report_parser.extract_material_rows(raw, page=1)
-    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강"}]
+    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강", "coupler_count": 0.0}]
 
 
 def test_extract_material_rows_returns_empty_when_table_not_found():
@@ -260,6 +260,31 @@ def test_build_capture_records_creates_one_record_per_spec_and_converts_ton_to_k
     assert weights["SHD13"] == pytest.approx(1531.0)
 
 
+def test_build_capture_records_classifies_row_as_coupler_when_coupler_count_positive():
+    table_html = _table_html(
+        ["철근경", "가공중량,Ton", "할증(%)", "로스감안중량,Ton", "커플러", "비고"],
+        [
+            ["SHD10", "0.528", "3", "0.544", "0", "동국제강"],
+            ["SHD13", "1.486", "3", "1.531", "12", "동국제강"],
+            ["계", "2.014", "", "2.075", "12", ""],
+        ],
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "heading1", "content": {"html": "<h1>철근 납품 확인서</h1>", "text": ""}},
+            {"page": 1, "category": "table", "content": {"html": table_html, "text": ""}},
+        ]
+    }
+    records = report_parser.build_capture_records(raw)
+    by_spec = {record["spec"]: record for record in records}
+
+    assert by_spec["SHD10"]["material_type"] == "철근"
+    assert by_spec["SHD10"]["item_name"] == "철근"
+
+    assert by_spec["SHD13"]["material_type"] == "철근"
+    assert by_spec["SHD13"]["item_name"] == "커플러"
+
+
 def test_build_capture_records_uses_custom_material_type():
     raw = make_cover_response(1, "(주)대건건철", [("SHD10", 0.544)])
     records = report_parser.build_capture_records(raw, material_type="H형강")
@@ -352,7 +377,7 @@ def test_extract_material_rows_parses_table_with_attributes_and_th_cells():
         ]
     }
     rows = report_parser.extract_material_rows(raw, page=1)
-    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강"}]
+    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강", "coupler_count": 0.0}]
 
 
 # --- Critical #2: header row is not necessarily rows[0] ---
@@ -377,7 +402,7 @@ def test_extract_material_rows_finds_header_when_info_rows_precede_it_in_same_ta
         ]
     }
     rows = report_parser.extract_material_rows(raw, page=1)
-    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강"}]
+    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강", "coupler_count": 0.0}]
 
 
 # --- Critical #3: value-side letter-spacing must be collapsed before pattern matching ---
@@ -558,7 +583,7 @@ def test_extract_material_rows_treats_comma_as_decimal_point():
         ]
     }
     rows = report_parser.extract_material_rows(raw, page=1)
-    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강"}]
+    assert rows == [{"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강", "coupler_count": 0.0}]
 
 
 def test_extract_material_rows_rejects_implausibly_large_weight():

@@ -232,6 +232,7 @@ def _extract_material_rows_with_skips(raw_response: dict, page: int) -> tuple[li
     except StopIteration:
         return [], 0
     note_idx = next((i for i, cell in enumerate(header) if "비고" in _collapse_spaces(cell)), None)
+    coupler_idx = next((i for i, cell in enumerate(header) if "커플러" in _collapse_spaces(cell)), None)
 
     result = []
     skipped = 0
@@ -254,7 +255,13 @@ def _extract_material_rows_with_skips(raw_response: dict, page: int) -> tuple[li
             skipped += 1
             continue
         note = row[note_idx].strip() if note_idx is not None and note_idx < len(row) else ""
-        result.append({"spec": spec, "weight_ton": weight_ton, "note": note})
+        coupler_count = 0.0
+        if coupler_idx is not None and coupler_idx < len(row):
+            try:
+                coupler_count = float(row[coupler_idx].strip())
+            except ValueError:
+                coupler_count = 0.0
+        result.append({"spec": spec, "weight_ton": weight_ton, "note": note, "coupler_count": coupler_count})
     return result, skipped
 
 
@@ -296,6 +303,7 @@ def build_capture_records(raw_response: dict, material_type: str = "철근") -> 
         vehicle_no = find_vehicle_no(raw_response, page)
         invoice_no = find_invoice_no(raw_response, page)
         for row in rows:
+            item_name = "커플러" if row.get("coupler_count", 0) > 0 else material_type
             records.append(
                 {
                     "material_type": material_type,
@@ -303,7 +311,7 @@ def build_capture_records(raw_response: dict, material_type: str = "철근") -> 
                     "delivery_date": delivery_date,
                     "vehicle_no": vehicle_no,
                     "invoice_no": invoice_no,
-                    "item_name": material_type,
+                    "item_name": item_name,
                     "spec": row["spec"],
                     "unit": "Ton",
                     "quantity": None,
