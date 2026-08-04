@@ -250,7 +250,7 @@ def test_build_capture_records_creates_one_record_per_spec_and_converts_ton_to_k
         assert record["vendor"] == "(주)대건건철"
         assert record["delivery_date"] == "2026-07-30"
         assert record["invoice_no"] == "1178-001"
-        assert record["unit"] == ""
+        assert record["unit"] == "Ton"
         assert record["quantity"] is None
         assert record["note"] == "동국제강,현대제철"
 

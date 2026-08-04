@@ -305,7 +305,7 @@ def build_capture_records(raw_response: dict, material_type: str = "철근") -> 
                     "invoice_no": invoice_no,
                     "item_name": material_type,
                     "spec": row["spec"],
-                    "unit": "",
+                    "unit": "Ton",
                     "quantity": None,
                     # Invoice.weight 컬럼은 kg 단위(기존 계약) — 표는 Ton이므로 변환한다.
                     "weight": row["weight_ton"] * 1000,
