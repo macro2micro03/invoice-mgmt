@@ -10,12 +10,10 @@ const COMMON_FIELD_DEFS = [
 ]
 
 const ITEM_FIELD_DEFS = [
-  ['material_type', '자재종류'],
   ['item_name', '품명'],
   ['spec', '규격'],
   ['unit', '단위'],
   ['quantity', '수량'],
-  ['weight', '중량'],
   ['note', '비고'],
 ]
 

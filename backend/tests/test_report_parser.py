@@ -251,8 +251,12 @@ def test_build_capture_records_creates_one_record_per_spec_and_converts_ton_to_k
         assert record["delivery_date"] == "2026-07-30"
         assert record["invoice_no"] == "1178-001"
         assert record["unit"] == "Ton"
-        assert record["quantity"] is None
         assert record["note"] == "동국제강,현대제철"
+
+    quantities = {record["spec"]: record["quantity"] for record in records}
+    # quantity는 화면에 보이는 수량 칸(Ton 단위) — 중량과 동일한 값을 보여준다.
+    assert quantities["SHD10"] == pytest.approx(0.544)
+    assert quantities["SHD13"] == pytest.approx(1.531)
 
     weights = {record["spec"]: record["weight"] for record in records}
     # weight는 kg 단위로 저장해야 한다(Invoice.weight 컬럼의 기존 계약) — Ton * 1000.
