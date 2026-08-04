@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
@@ -6,6 +7,7 @@ from .. import ocr, report_parser, spec_grade
 from ..auth import verify_password
 
 router = APIRouter(dependencies=[Depends(verify_password)])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/ocr")
@@ -14,12 +16,23 @@ async def run_ocr(file: UploadFile = File(...)):
     try:
         raw_response = ocr.call_upstage_ocr(image_bytes, filename=file.filename or "invoice.jpg")
     except Exception:
+        logger.exception("Upstage OCR 호출 실패 (filename=%s, bytes=%d)", file.filename, len(image_bytes))
         return {"records": [{field: "" for field in ocr.STANDARD_FIELDS}]}
 
-    if report_parser.find_cover_pages(raw_response):
+    cover_pages = report_parser.find_cover_pages(raw_response)
+    if cover_pages:
         records = report_parser.build_capture_records(raw_response)
         if records:
             return {"records": records}
+        logger.warning(
+            "갑지 페이지(%s)는 찾았지만 자재 내역을 추출하지 못함 (filename=%s)", cover_pages, file.filename
+        )
+    else:
+        logger.warning(
+            "갑지 제목을 인식하지 못함 (filename=%s) — 텍스트 미리보기: %r",
+            file.filename,
+            ocr.extract_text(raw_response)[:500],
+        )
 
     text = ocr.extract_text(raw_response)
     return {"records": [ocr.normalize_fields(text)]}
