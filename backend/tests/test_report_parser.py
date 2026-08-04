@@ -233,7 +233,7 @@ def test_labeled_values_do_not_bleed_into_next_label_when_concatenated():
     assert report_parser.find_vendor_heading(raw, page=1) == "(주)대건건철"
 
 
-def test_build_capture_records_creates_one_record_per_spec_and_converts_ton_to_kg():
+def test_build_capture_records_creates_one_record_per_spec():
     raw = make_cover_response(
         1,
         "(주)대건건철",
@@ -259,9 +259,9 @@ def test_build_capture_records_creates_one_record_per_spec_and_converts_ton_to_k
     assert quantities["SHD13"] == pytest.approx(1.531)
 
     weights = {record["spec"]: record["weight"] for record in records}
-    # weight는 kg 단위로 저장해야 한다(Invoice.weight 컬럼의 기존 계약) — Ton * 1000.
-    assert weights["SHD10"] == pytest.approx(544.0)
-    assert weights["SHD13"] == pytest.approx(1531.0)
+    # weight도 Ton 단위로 저장한다(Invoice.weight 컬럼의 기존 계약) — 변환 없이 그대로.
+    assert weights["SHD10"] == pytest.approx(0.544)
+    assert weights["SHD13"] == pytest.approx(1.531)
 
 
 def test_build_capture_records_classifies_row_as_coupler_when_coupler_count_positive():

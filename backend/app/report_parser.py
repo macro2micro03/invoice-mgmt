@@ -316,8 +316,8 @@ def build_capture_records(raw_response: dict, material_type: str = "철근") -> 
                     "unit": "Ton",
                     # quantity는 화면에 보이는 수량 칸(Ton) — 중량과 동일한 값을 보여준다.
                     "quantity": row["weight_ton"],
-                    # Invoice.weight 컬럼은 kg 단위(기존 계약) — 표는 Ton이므로 변환한다.
-                    "weight": row["weight_ton"] * 1000,
+                    # Invoice.weight 컬럼도 Ton 단위로 저장한다(기존 계약) — 변환 없이 그대로.
+                    "weight": row["weight_ton"],
                     "note": row["note"],
                 }
             )
