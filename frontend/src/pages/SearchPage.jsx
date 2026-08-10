@@ -101,7 +101,7 @@ export default function SearchPage() {
       </div>
       {selectedIds.length > 0 && (
         <div className="field">
-          <button className="btn btn-secondary" onClick={handleBulkDelete} disabled={deleting}>
+          <button className="btn btn-danger" onClick={handleBulkDelete} disabled={deleting}>
             {deleting ? '삭제 중...' : `선택 삭제 (${selectedIds.length})`}
           </button>
         </div>

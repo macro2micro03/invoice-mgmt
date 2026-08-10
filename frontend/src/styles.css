@@ -163,6 +163,16 @@ body {
   color: var(--color-text);
 }
 
+.btn-danger {
+  background: var(--color-error-bg);
+  border-color: #f5b5b5;
+  color: var(--color-error-text);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #fbd5d5;
+}
+
 .banner {
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
