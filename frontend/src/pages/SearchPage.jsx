@@ -16,18 +16,36 @@ const COLUMNS = [
   ['note', '비고'],
 ]
 
+function loadStoredState() {
+  try {
+    const raw = sessionStorage.getItem('searchPageState')
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
 export default function SearchPage() {
-  const [vendor, setVendor] = useState('')
-  const [materialType, setMaterialType] = useState('철근')
-  const [results, setResults] = useState([])
+  const stored = loadStoredState()
+  const [vendor, setVendor] = useState(stored?.vendor ?? '')
+  const [materialType, setMaterialType] = useState(stored?.materialType ?? '철근')
+  const [results, setResults] = useState(stored?.results ?? [])
   const [selectedIds, setSelectedIds] = useState([])
   const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
+
+  function persist(next) {
+    sessionStorage.setItem(
+      'searchPageState',
+      JSON.stringify({ vendor, materialType, results, ...next })
+    )
+  }
 
   async function handleSearch() {
     const data = await searchInvoices({ vendor, material_type: materialType })
     setResults(data)
     setSelectedIds([])
+    persist({ results: data })
   }
 
   function toggleSelected(id) {
@@ -44,8 +62,10 @@ export default function SearchPage() {
     setDeleting(true)
     try {
       await bulkDeleteInvoices(selectedIds)
-      setResults((prev) => prev.filter((item) => !selectedIds.includes(item.id)))
+      const remaining = results.filter((item) => !selectedIds.includes(item.id))
+      setResults(remaining)
       setSelectedIds([])
+      persist({ results: remaining })
     } catch (err) {
       alert('삭제에 실패했습니다. 다시 시도해주세요.')
     } finally {
@@ -59,7 +79,15 @@ export default function SearchPage() {
     <div className="page page-wide">
       <h1>검색</h1>
       <div className="search-bar">
-        <input className="input" placeholder="거래처" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+        <input
+          className="input"
+          placeholder="거래처"
+          value={vendor}
+          onChange={(e) => {
+            setVendor(e.target.value)
+            persist({ vendor: e.target.value })
+          }}
+        />
         <input
           className="input"
           placeholder="자재종류"
