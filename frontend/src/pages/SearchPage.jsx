@@ -28,7 +28,7 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 720 }}>
+    <div className="page page-wide">
       <h1>검색</h1>
       <div className="search-bar">
         <input className="input" placeholder="거래처" value={vendor} onChange={(e) => setVendor(e.target.value)} />
