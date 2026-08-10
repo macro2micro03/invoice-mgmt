@@ -3,7 +3,7 @@ import re
 
 import requests
 
-from . import config
+from . import config, spec_grade
 
 FIELD_LABELS = {
     "material_type": ["자재종류", "자재명"],
@@ -44,6 +44,28 @@ _ALL_TAG_LABELS = sorted(
     reverse=True,
 )
 _TAG_LABEL_LOOKAHEAD = "|".join(re.escape(label) for label in _ALL_TAG_LABELS)
+
+# 실제 철근 택은 "직경:"/"강도:" 같은 라벨 없이 SD500/SHD13/UHD22 같은 규격·강도
+# 표기 자체만 표에 나열되는 경우가 대부분이다(제조사마다 "종류의기호"/"강종" 등
+# 서로 다른 항목명을 쓰고, 현장 가공 택은 항목명 자체가 없기도 하다). 라벨 매칭이
+# 실패했을 때 이 표기를 직접 찾아 강도/직경을 복구하는 보조 수단이다.
+_PREFIXED_SPEC_PATTERN = re.compile(r"\b(SHD|UHD|SD)(\d{1,2})(?!\d)")
+_BARE_GRADE_PATTERN = re.compile(r"\bSD([456]00)(?!\d)")
+_DIAMETER_PATTERN = re.compile(r"(?<![A-Za-z])D(\d{1,2})(?!\d)")
+
+
+def _fallback_tag_grade_diameter(text: str) -> tuple[str, str]:
+    upper_text = text.upper()
+    prefixed_match = _PREFIXED_SPEC_PATTERN.search(upper_text)
+    if prefixed_match:
+        grade, diameter = spec_grade.parse_spec_grade_diameter(prefixed_match.group(0))
+        if grade and diameter:
+            return grade, diameter
+    bare_match = _BARE_GRADE_PATTERN.search(upper_text)
+    diameter_match = _DIAMETER_PATTERN.search(upper_text)
+    grade = f"SD{bare_match.group(1)}" if bare_match else ""
+    diameter = diameter_match.group(1) if diameter_match else ""
+    return grade, diameter
 
 
 def call_upstage_ocr(image_bytes: bytes, filename: str = "invoice.jpg") -> dict:
@@ -138,5 +160,12 @@ def normalize_tag_fields(raw_text: str) -> dict:
                     if value and value != label:
                         result[field] = value
                         break
+
+    if not result["tag_grade"] or not result["tag_diameter"]:
+        fallback_grade, fallback_diameter = _fallback_tag_grade_diameter(raw_text)
+        if not result["tag_grade"] and fallback_grade:
+            result["tag_grade"] = fallback_grade
+        if not result["tag_diameter"] and fallback_diameter:
+            result["tag_diameter"] = fallback_diameter
 
     return result

@@ -140,6 +140,44 @@ def test_normalize_tag_fields_extracts_labeled_values():
     assert fields["tag_shape"] == "직선"
 
 
+def test_normalize_tag_fields_recovers_grade_diameter_from_manufacturer_style_a():
+    # 동국제강 스타일: "종류의기호"란에 SD500, "호칭및길이"란에 "D10 X 8.0m"처럼
+    # 직경/강도 라벨이 전혀 없다.
+    text = (
+        "종 류\n이 형 봉 강\n"
+        "종류의기호\nSD500\n"
+        "호칭및길이\nD10 X 8.0m\n"
+        "수 량\n210PCS / 941kg\n"
+    )
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_grade"] == "SD500"
+    assert fields["tag_diameter"] == "10"
+
+
+def test_normalize_tag_fields_recovers_grade_diameter_from_manufacturer_style_b():
+    # 현대제철 스타일: "강종"란에 SD600, "규격"란에 "D16 X 8 M".
+    text = "강 종\nSD600\n규 격\nD16 X 8 M\n제강번호\nK 347001 027\n"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_grade"] == "SD600"
+    assert fields["tag_diameter"] == "16"
+
+
+def test_normalize_tag_fields_recovers_grade_diameter_from_bare_spec_code():
+    # 현장 가공 택: 라벨 없이 UHD22, SD600 같은 값만 표에 나열된다.
+    text = "삼성물산-서소문빌딩재개발 현장\nUHD22    7,700    52\nSD600    mm    EA\n"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_grade"] == "SD600"
+    assert fields["tag_diameter"] == "22"
+
+
+def test_normalize_tag_fields_fallback_does_not_override_labeled_values():
+    # 라벨로 이미 값을 찾았으면 보조 추출로 덮어쓰지 않는다.
+    text = "직경: 13\n강도: SD500\nUHD22\n"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_diameter"] == "13"
+    assert fields["tag_grade"] == "SD500"
+
+
 def test_normalize_tag_fields_missing_label_returns_empty_strings():
     fields = ocr.normalize_tag_fields("아무 관련 없는 텍스트")
     for field in ocr.TAG_FIELDS:
