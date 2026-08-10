@@ -312,7 +312,12 @@ export default function EditPage() {
           <p className="banner banner-warning">{tagInfo.mismatchReason}</p>
         )}
       </div>
-      <button className="btn btn-primary" onClick={handleSave} disabled={saving || !canSave} style={{ width: '100%' }}>
+      <button
+        className="btn btn-primary"
+        onClick={handleSave}
+        disabled={saving || !canSave}
+        style={{ width: '100%', marginTop: 16 }}
+      >
         {saving ? '저장 중...' : `저장 (${items.length}건)`}
       </button>
     </div>
