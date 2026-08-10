@@ -60,13 +60,13 @@ function describeMismatch(tagGrade, tagDiameter, items) {
   const normTagDiameter = normalizeDiameter(tagDiameter)
 
   if (!normTagGrade && !normTagDiameter) {
-    return '택에서 강도와 직경을 모두 인식하지 못했습니다. 택 사진을 다시 확인해주세요.'
+    return '자재 일치 여부를 판단할 수 없습니다 — 택 사진에서 강도와 직경 글자를 읽어내지 못했습니다(자재 목록과는 무관). 택 사진이 선명하게 나오도록 다시 촬영해주세요.'
   }
   if (!normTagGrade) {
-    return `택에서 강도를 인식하지 못했습니다 (직경 D${normTagDiameter}만 인식됨). 택 사진을 다시 확인해주세요.`
+    return `자재 일치 여부를 판단할 수 없습니다 — 택 사진에서 강도(SD/SHD/UHD) 글자를 읽어내지 못했습니다(직경 D${normTagDiameter}만 인식됨, 등록된 자재와는 무관한 사진 인식 문제입니다). 택 사진이 선명하게 나오도록 다시 촬영해주세요.`
   }
   if (!normTagDiameter) {
-    return `택에서 직경을 인식하지 못했습니다 (강도 ${normTagGrade}만 인식됨). 택 사진을 다시 확인해주세요.`
+    return `자재 일치 여부를 판단할 수 없습니다 — 택 사진에서 직경 숫자를 읽어내지 못했습니다(강도 ${normTagGrade}만 인식됨, 등록된 자재와는 무관한 사진 인식 문제입니다). 택 사진이 선명하게 나오도록 다시 촬영해주세요.`
   }
 
   const registered = items
