@@ -54,11 +54,45 @@ function matchTagToSpec(tagGrade, tagDiameter, spec) {
   return 'mismatched'
 }
 
+// 불일치 시, 직경/강도 중 어느 쪽이 원인인지 구분해 안내 문구를 만든다.
+function describeMismatch(tagGrade, tagDiameter, items) {
+  const normTagGrade = normalizeGrade(tagGrade)
+  const normTagDiameter = normalizeDiameter(tagDiameter)
+
+  if (!normTagGrade && !normTagDiameter) {
+    return '택에서 강도와 직경을 모두 인식하지 못했습니다. 택 사진을 다시 확인해주세요.'
+  }
+  if (!normTagGrade) {
+    return `택에서 강도를 인식하지 못했습니다 (직경 D${normTagDiameter}만 인식됨). 택 사진을 다시 확인해주세요.`
+  }
+  if (!normTagDiameter) {
+    return `택에서 직경을 인식하지 못했습니다 (강도 ${normTagGrade}만 인식됨). 택 사진을 다시 확인해주세요.`
+  }
+
+  const registered = items
+    .map((item) => ({ spec: item.spec, grade: parseSpecGradeDiameter(item.spec)[0], diameter: parseSpecGradeDiameter(item.spec)[1] }))
+    .filter((entry) => entry.grade !== null)
+
+  const sameDiameter = registered.filter((entry) => entry.diameter === normTagDiameter)
+  const sameGrade = registered.filter((entry) => entry.grade === normTagGrade)
+
+  if (sameDiameter.length > 0) {
+    const grades = [...new Set(sameDiameter.map((entry) => entry.grade))].join(', ')
+    return `직경(D${normTagDiameter})은 일치하는 자재가 있지만 강도(${normTagGrade})가 다릅니다. 등록된 강도: ${grades}`
+  }
+  if (sameGrade.length > 0) {
+    const diameters = [...new Set(sameGrade.map((entry) => `D${entry.diameter}`))].join(', ')
+    return `강도(${normTagGrade})는 일치하는 자재가 있지만 직경(D${normTagDiameter})이 다릅니다. 등록된 직경: ${diameters}`
+  }
+  return `직경(D${normTagDiameter})과 강도(${normTagGrade})가 모두 일치하는 등록 자재가 없습니다.`
+}
+
 // 촬영한 택 하나를 전체 규격 목록과 비교해, 일치하는 규격이 하나라도 있으면
-// 'matched'(그 규격 문자열과 함께), 하나도 없으면 'mismatched'를 반환한다.
+// 'matched'(그 규격 문자열과 함께), 하나도 없으면 'mismatched'와 불일치 사유를 반환한다.
 function matchTagAgainstItems(tagGrade, tagDiameter, items) {
   const matchedSpec = items.find((item) => matchTagToSpec(tagGrade, tagDiameter, item.spec) === 'matched')
-  return matchedSpec ? { status: 'matched', spec: matchedSpec.spec } : { status: 'mismatched', spec: null }
+  if (matchedSpec) return { status: 'matched', spec: matchedSpec.spec, reason: null }
+  return { status: 'mismatched', spec: null, reason: describeMismatch(tagGrade, tagDiameter, items) }
 }
 
 function makeItem(record) {
@@ -84,6 +118,7 @@ function makeTagInfo() {
     tag_shape: '',
     tag_match_status: null,
     matchedSpec: null,
+    mismatchReason: null,
     tagPhotoFile: null,
   }
 }
@@ -115,8 +150,8 @@ export default function EditPage() {
     if (key === 'spec' && tagInfo.tag_grade) {
       setItems((prev) => {
         const updated = prev.map((item, i) => (i === index ? { ...item, spec: value } : item))
-        const { status, spec } = matchTagAgainstItems(tagInfo.tag_grade, tagInfo.tag_diameter, updated)
-        setTagInfo((prevTag) => ({ ...prevTag, tag_match_status: status, matchedSpec: spec }))
+        const { status, spec, reason } = matchTagAgainstItems(tagInfo.tag_grade, tagInfo.tag_diameter, updated)
+        setTagInfo((prevTag) => ({ ...prevTag, tag_match_status: status, matchedSpec: spec, mismatchReason: reason }))
         return updated
       })
     }
@@ -131,10 +166,10 @@ export default function EditPage() {
     if (!file) return
     setTagLoading(true)
     // 재촬영이 실패하거나 결과가 도착하기 전까지 이전 판정 결과가 남아있지 않도록 초기화한다.
-    setTagInfo((prev) => ({ ...prev, tag_match_status: null, matchedSpec: null }))
+    setTagInfo((prev) => ({ ...prev, tag_match_status: null, matchedSpec: null, mismatchReason: null }))
     try {
       const result = await runTagOcr(file)
-      const { status, spec } = matchTagAgainstItems(result.tag_grade, result.tag_diameter, items)
+      const { status, spec, reason } = matchTagAgainstItems(result.tag_grade, result.tag_diameter, items)
       setTagInfo({
         tag_site_name: result.tag_site_name || '',
         tag_location: result.tag_location || '',
@@ -145,6 +180,7 @@ export default function EditPage() {
         tag_shape: result.tag_shape || '',
         tag_match_status: status,
         matchedSpec: spec,
+        mismatchReason: reason,
         tagPhotoFile: file,
       })
     } catch (err) {
@@ -158,7 +194,7 @@ export default function EditPage() {
     setSaving(true)
     let saved = 0
     try {
-      const { matchedSpec, tag_match_status, ...tagFields } = tagInfo
+      const { matchedSpec, tag_match_status, mismatchReason, ...tagFields } = tagInfo
       for (const item of items) {
         await createInvoice({ ...common, ...item, ...tagFields }, photoFile, tagInfo.tagPhotoFile)
         saved += 1
@@ -243,9 +279,7 @@ export default function EditPage() {
           </p>
         )}
         {tagInfo.tag_match_status === 'mismatched' && (
-          <p className="banner banner-warning">
-            택 규격({tagInfo.tag_grade} D{tagInfo.tag_diameter})이 일치하는 자재가 없습니다
-          </p>
+          <p className="banner banner-warning">{tagInfo.mismatchReason}</p>
         )}
       </div>
       <button className="btn btn-primary" onClick={handleSave} disabled={saving || !canSave} style={{ width: '100%' }}>
