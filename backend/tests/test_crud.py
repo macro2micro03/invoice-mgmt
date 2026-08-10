@@ -91,3 +91,13 @@ def test_update_invoice_recomputes_tag_match_status(db_session):
     )
     updated = crud.update_invoice(db_session, created.id, update_data)
     assert updated.tag_match_status == "matched"
+
+
+def test_delete_invoice_removes_record_and_returns_true(db_session):
+    created = crud.create_invoice(db_session, make_invoice_data())
+    assert crud.delete_invoice(db_session, created.id) is True
+    assert crud.get_invoice(db_session, created.id) is None
+
+
+def test_delete_invoice_missing_returns_false(db_session):
+    assert crud.delete_invoice(db_session, 999999) is False

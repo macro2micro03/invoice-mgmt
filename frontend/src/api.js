@@ -77,6 +77,15 @@ export async function getInvoice(id) {
   return response.json()
 }
 
+export async function deleteInvoice(id) {
+  const response = await fetch(`${API_BASE}/invoices/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  handleUnauthorized(response)
+  if (!response.ok) throw new Error('삭제 실패')
+}
+
 export async function updateInvoice(id, fields) {
   const response = await fetch(`${API_BASE}/invoices/${id}`, {
     method: 'PUT',

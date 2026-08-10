@@ -124,3 +124,10 @@ def update_invoice(invoice_id: int, data: schemas.InvoiceUpdate, db: Session = D
     if invoice is None:
         raise HTTPException(status_code=404, detail="송장을 찾을 수 없습니다")
     return invoice
+
+
+@router.delete("/invoices/{invoice_id}", status_code=204)
+def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
+    deleted = crud.delete_invoice(db, invoice_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="송장을 찾을 수 없습니다")

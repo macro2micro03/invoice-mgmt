@@ -59,6 +59,15 @@ def update_invoice(db: Session, invoice_id: int, data: schemas.InvoiceUpdate) ->
     return invoice
 
 
+def delete_invoice(db: Session, invoice_id: int) -> bool:
+    invoice = get_invoice(db, invoice_id)
+    if invoice is None:
+        return False
+    db.delete(invoice)
+    db.commit()
+    return True
+
+
 def list_invoices_by_material_and_date(db: Session, material_type: str, delivery_date: date) -> list[models.Invoice]:
     return (
         db.query(models.Invoice)

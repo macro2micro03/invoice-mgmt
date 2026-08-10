@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getInvoice, updateInvoice } from '../api.js'
+import { deleteInvoice, getInvoice, updateInvoice } from '../api.js'
 
 const FIELD_DEFS = [
   ['material_type', '자재종류'],
@@ -37,6 +37,7 @@ export default function DetailPage() {
   const navigate = useNavigate()
   const [invoice, setInvoice] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     getInvoice(id).then(setInvoice)
@@ -62,6 +63,19 @@ export default function DetailPage() {
       alert('저장에 실패했습니다. 다시 시도해주세요.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('이 송장 기록을 삭제하시겠습니까? 되돌릴 수 없습니다.')) return
+    setDeleting(true)
+    try {
+      await deleteInvoice(id)
+      navigate('/search')
+    } catch (err) {
+      alert('삭제에 실패했습니다. 다시 시도해주세요.')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -102,6 +116,14 @@ export default function DetailPage() {
         ))}
         <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ width: '100%' }}>
           {saving ? '저장 중...' : '수정 저장'}
+        </button>
+        <button
+          className="btn btn-secondary"
+          onClick={handleDelete}
+          disabled={deleting}
+          style={{ width: '100%', marginTop: 8 }}
+        >
+          {deleting ? '삭제 중...' : '삭제'}
         </button>
       </div>
     </div>

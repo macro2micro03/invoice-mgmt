@@ -133,3 +133,22 @@ def test_update_invoice_ignores_client_supplied_tag_match_status(monkeypatch):
     )
     assert update_response.status_code == 200
     assert update_response.json()["tag_match_status"] == "mismatched"
+
+
+def test_delete_invoice_removes_it(monkeypatch):
+    monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
+    monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")
+
+    create_response = client.post("/invoices", data={"material_type": "철근", "vendor": "삭제대상"})
+    invoice_id = create_response.json()["id"]
+
+    delete_response = client.delete(f"/invoices/{invoice_id}")
+    assert delete_response.status_code == 204
+
+    get_response = client.get(f"/invoices/{invoice_id}")
+    assert get_response.status_code == 404
+
+
+def test_delete_invoice_missing_returns_404():
+    response = client.delete("/invoices/999999")
+    assert response.status_code == 404
