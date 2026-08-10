@@ -212,16 +212,27 @@ export default function EditPage() {
           ))}
           <div className="field">
             <label>택 촬영</label>
-            <label className="btn btn-secondary photo-picker-add">
-              {tagLoadingIndex === index ? '인식 중...' : item.tagPhotoFile ? '택 다시 촬영' : '📷 택 촬영'}
-              <input
-                className="photo-picker-input"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => handleTagPhotoChange(index, e)}
-              />
-            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <label className="btn btn-primary photo-picker-add">
+                {tagLoadingIndex === index ? '인식 중...' : item.tagPhotoFile ? '📷 택 다시 촬영' : '📷 촬영'}
+                <input
+                  className="photo-picker-input"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => handleTagPhotoChange(index, e)}
+                />
+              </label>
+              <label className="btn btn-secondary photo-picker-add">
+                📁 파일 선택
+                <input
+                  className="photo-picker-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleTagPhotoChange(index, e)}
+                />
+              </label>
+            </div>
           </div>
           {item.tag_match_status === 'mismatched' && (
             <p className="banner banner-warning">
