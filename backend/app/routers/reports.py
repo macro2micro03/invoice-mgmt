@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from .. import crud, ocr, report_excel, report_from_records, report_parser
+from .. import crud, ocr, report_excel, report_from_records, report_ledger, report_parser
 from ..auth import verify_password
 from ..database import get_db
 
@@ -133,6 +133,61 @@ async def create_material_inspection_report(
     }
     if warnings:
         headers["X-Report-Warnings"] = quote(" | ".join(warnings))
+
+    return Response(
+        content=xlsx_bytes,
+        media_type=XLSX_MEDIA_TYPE,
+        headers=headers,
+    )
+
+
+@router.post("/reports/material-ledger")
+async def create_material_ledger(
+    invoice_ids: Optional[str] = Form(None),
+    inspector: str = Form(""),
+    supervisor: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    if not invoice_ids:
+        raise HTTPException(status_code=400, detail="선택 항목이 없습니다")
+    try:
+        ids = [int(part) for part in invoice_ids.split(",") if part.strip()]
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail="선택 항목 형식이 올바르지 않습니다") from error
+
+    invoices = crud.list_invoices_by_ids(db, ids)
+    if not invoices:
+        raise HTTPException(status_code=400, detail="선택한 송장 기록을 찾을 수 없습니다")
+
+    excluded_count = sum(
+        1 for invoice in invoices if invoice.item_name == "커플러" or invoice.material_type != "철근"
+    )
+    rebar_invoices = sorted(
+        (
+            invoice
+            for invoice in invoices
+            if invoice.item_name != "커플러" and invoice.material_type == "철근"
+        ),
+        key=lambda invoice: invoice.delivery_date or date.min,
+    )
+    if not rebar_invoices:
+        raise HTTPException(status_code=400, detail="선택한 기록 중 철근 자재 기록이 없습니다")
+
+    xlsx_bytes = report_ledger.fill_material_ledger(
+        report_ledger.TEMPLATE_PATH, rebar_invoices, inspector, supervisor
+    )
+
+    filename = f"주요자재검사및수불부_{date.today():%y%m%d}.xlsx"
+    encoded_filename = quote(filename)
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"ledger.xlsx\"; filename*=UTF-8''{encoded_filename}"
+        )
+    }
+    if excluded_count:
+        headers["X-Report-Warnings"] = quote(
+            f"커플러 또는 철근이 아닌 자재 {excluded_count}건은 수불부에서 제외했습니다"
+        )
 
     return Response(
         content=xlsx_bytes,
