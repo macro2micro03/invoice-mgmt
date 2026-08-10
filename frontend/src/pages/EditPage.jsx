@@ -161,6 +161,16 @@ export default function EditPage() {
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
+  // OCR이 강도/직경을 잘못 읽었거나 못 읽었을 때 사용자가 직접 고칠 수 있게 하고,
+  // 수정 즉시 새 값 기준으로 재판정한다.
+  function handleTagFieldChange(key, value) {
+    setTagInfo((prev) => {
+      const updated = { ...prev, [key]: value }
+      const { status, spec, reason } = matchTagAgainstItems(updated.tag_grade, updated.tag_diameter, items)
+      return { ...updated, tag_match_status: status, matchedSpec: spec, mismatchReason: reason }
+    })
+  }
+
   async function handleTagPhotoChange(event) {
     const file = event.target.files[0]
     if (!file) return
@@ -272,6 +282,26 @@ export default function EditPage() {
             📁 파일 선택
             <input className="photo-picker-input" type="file" accept="image/*" onChange={handleTagPhotoChange} />
           </label>
+        </div>
+        <div className="field">
+          <label>강도 (자동 인식, 다르면 직접 수정)</label>
+          <input
+            className="input"
+            type="text"
+            value={tagInfo.tag_grade}
+            onChange={(e) => handleTagFieldChange('tag_grade', e.target.value)}
+            placeholder="예: SD400, SD500, SD600"
+          />
+        </div>
+        <div className="field">
+          <label>직경 (자동 인식, 다르면 직접 수정)</label>
+          <input
+            className="input"
+            type="text"
+            value={tagInfo.tag_diameter}
+            onChange={(e) => handleTagFieldChange('tag_diameter', e.target.value)}
+            placeholder="예: 10, 13, 16"
+          />
         </div>
         {tagInfo.tag_match_status === 'matched' && (
           <p className="banner banner-success">
