@@ -1,10 +1,11 @@
+from datetime import date
 from types import SimpleNamespace
 
 from app import report_from_records
 
 
-def _invoice(spec, vendor, weight, note=""):
-    return SimpleNamespace(spec=spec, vendor=vendor, weight=weight, note=note)
+def _invoice(spec, vendor, weight, note="", delivery_date=None):
+    return SimpleNamespace(spec=spec, vendor=vendor, weight=weight, note=note, delivery_date=delivery_date)
 
 
 def test_build_report_data_from_invoices_separates_rows_by_spec_and_vendor():
@@ -55,3 +56,21 @@ def test_build_report_data_from_invoices_sets_delivery_date_and_empty_skipped_pa
     assert data["skipped_pages"] == []
     assert data["specs"] == []
     assert data["vendor"] == ""
+
+
+def test_build_report_data_from_invoices_derives_delivery_date_when_not_given():
+    invoices = [
+        _invoice("SHD10", "동경강업(주)", 1.0, delivery_date=date(2026, 4, 20)),
+        _invoice("SHD13", "대한제강", 0.5, delivery_date=date(2026, 4, 20)),
+    ]
+    data = report_from_records.build_report_data_from_invoices(invoices)
+    assert data["delivery_date"] == "2026-04-20"
+
+
+def test_build_report_data_from_invoices_joins_distinct_dates_when_not_given():
+    invoices = [
+        _invoice("SHD10", "동경강업(주)", 1.0, delivery_date=date(2026, 4, 20)),
+        _invoice("SHD13", "대한제강", 0.5, delivery_date=date(2026, 4, 21)),
+    ]
+    data = report_from_records.build_report_data_from_invoices(invoices)
+    assert data["delivery_date"] == "2026-04-20, 2026-04-21"

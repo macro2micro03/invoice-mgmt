@@ -1,11 +1,14 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import PhotoPicker from '../components/PhotoPicker.jsx'
 import { createMaterialInspectionReport } from '../api.js'
 
 const MAX_PHOTO_SETS = 5
 
 export default function ReportPage() {
-  const [mode, setMode] = useState('file')
+  const location = useLocation()
+  const invoiceIds = location.state?.invoiceIds ?? []
+  const [mode, setMode] = useState(invoiceIds.length > 0 ? 'selected' : 'file')
   const [projectName, setProjectName] = useState('서소문 재개발')
   const [workType, setWorkType] = useState('건축')
   const [materialType, setMaterialType] = useState('철근')
@@ -19,7 +22,8 @@ export default function ReportPage() {
   const [generating, setGenerating] = useState(false)
 
   const effectiveMaterialType = mode === 'date' ? '철근' : materialType
-  const canSubmit = mode === 'file' ? files.length > 0 : !!deliveryDate
+  const canSubmit =
+    mode === 'file' ? files.length > 0 : mode === 'date' ? !!deliveryDate : invoiceIds.length > 0
 
   function handleAddPhotoSet() {
     setPhotoSets((prev) => (prev.length < MAX_PHOTO_SETS ? [...prev, { top: [], bottom: [] }] : prev))
@@ -50,6 +54,7 @@ export default function ReportPage() {
         mode === 'file' ? files : [],
         photoSets,
         mode === 'date' ? deliveryDate : '',
+        mode === 'selected' ? invoiceIds : [],
       )
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -74,6 +79,16 @@ export default function ReportPage() {
         <div className="field">
           <label>생성 방식</label>
           <div style={{ display: 'flex', gap: 8 }}>
+            {invoiceIds.length > 0 && (
+              <button
+                type="button"
+                className={`btn ${mode === 'selected' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setMode('selected')}
+                style={{ flex: 1 }}
+              >
+                선택 항목 ({invoiceIds.length}건)
+              </button>
+            )}
             <button
               type="button"
               className={`btn ${mode === 'file' ? 'btn-primary' : 'btn-secondary'}`}
@@ -123,14 +138,15 @@ export default function ReportPage() {
           <label>수신자(총괄관리원)</label>
           <input className="input" value={receiver} onChange={(e) => setReceiver(e.target.value)} required />
         </div>
-        {mode === 'file' ? (
+        {mode === 'file' && (
           <PhotoPicker
             label="송장 갑지 파일 (PDF 또는 이미지, 여러 장 가능)"
             accept="application/pdf,image/*"
             files={files}
             onFilesChange={setFiles}
           />
-        ) : (
+        )}
+        {mode === 'date' && (
           <div className="field">
             <label>반입일자</label>
             <input
@@ -140,6 +156,11 @@ export default function ReportPage() {
               onChange={(e) => setDeliveryDate(e.target.value)}
             />
           </div>
+        )}
+        {mode === 'selected' && (
+          <p className="banner banner-success">
+            검색에서 선택한 {invoiceIds.length}건의 촬영 기록으로 보고서를 생성합니다.
+          </p>
         )}
         {photoSets.map((set, index) => (
           <div key={index} className="card item-card">

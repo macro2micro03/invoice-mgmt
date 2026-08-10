@@ -108,7 +108,7 @@ export async function updateInvoice(id, fields) {
   return response.json()
 }
 
-export async function createMaterialInspectionReport(fields, files, photoSets = [], deliveryDate = '') {
+export async function createMaterialInspectionReport(fields, files, photoSets = [], deliveryDate = '', invoiceIds = []) {
   const formData = new FormData()
   Object.entries(fields).forEach(([key, value]) => {
     formData.append(key, value)
@@ -128,6 +128,9 @@ export async function createMaterialInspectionReport(fields, files, photoSets = 
   })
   if (deliveryDate) {
     formData.append('delivery_date', deliveryDate)
+  }
+  if (invoiceIds.length > 0) {
+    formData.append('invoice_ids', invoiceIds.join(','))
   }
   const response = await fetch(`${API_BASE}/reports/material-inspection`, {
     method: 'POST',

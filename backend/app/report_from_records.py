@@ -1,4 +1,8 @@
-def build_report_data_from_invoices(invoices, delivery_date: str) -> dict:
+def build_report_data_from_invoices(invoices, delivery_date: str = None) -> dict:
+    if delivery_date is None:
+        dates = sorted({invoice.delivery_date.isoformat() for invoice in invoices if invoice.delivery_date})
+        delivery_date = ", ".join(dates)
+
     groups: dict[tuple[str, str], dict] = {}
     order: list[tuple[str, str]] = []
 

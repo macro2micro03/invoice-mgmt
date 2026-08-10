@@ -25,6 +25,7 @@ async def create_material_inspection_report(
     receiver: str = Form(...),
     files: List[UploadFile] = File(default=[]),
     delivery_date: Optional[str] = Form(None),
+    invoice_ids: Optional[str] = Form(None),
     photo_set_1_top: List[UploadFile] = File(default=[]),
     photo_set_1_bottom: List[UploadFile] = File(default=[]),
     photo_set_2_top: List[UploadFile] = File(default=[]),
@@ -37,7 +38,16 @@ async def create_material_inspection_report(
     photo_set_5_bottom: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
-    if delivery_date:
+    if invoice_ids:
+        try:
+            ids = [int(part) for part in invoice_ids.split(",") if part.strip()]
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="선택 항목 형식이 올바르지 않습니다") from error
+        invoices = crud.list_invoices_by_ids(db, ids)
+        if not invoices:
+            raise HTTPException(status_code=400, detail="선택한 송장 기록을 찾을 수 없습니다")
+        report_data = report_from_records.build_report_data_from_invoices(invoices)
+    elif delivery_date:
         try:
             parsed_date = date.fromisoformat(delivery_date)
         except ValueError as error:

@@ -80,6 +80,17 @@ def delete_invoices(db: Session, invoice_ids: list[int]) -> int:
     return deleted_count
 
 
+def list_invoices_by_ids(db: Session, invoice_ids: list[int]) -> list[models.Invoice]:
+    if not invoice_ids:
+        return []
+    return (
+        db.query(models.Invoice)
+        .filter(models.Invoice.id.in_(invoice_ids))
+        .order_by(models.Invoice.id)
+        .all()
+    )
+
+
 def list_invoices_by_material_and_date(db: Session, material_type: str, delivery_date: date) -> list[models.Invoice]:
     return (
         db.query(models.Invoice)

@@ -416,3 +416,73 @@ def test_create_report_400_when_neither_files_nor_delivery_date_given():
     )
     assert response.status_code == 400
     assert "파일을 업로드하거나 반입일자를 선택" in response.json()["detail"]
+
+
+def test_create_report_from_invoice_ids_returns_xlsx(monkeypatch):
+    from app import excel as excel_module
+    from app import pdf as pdf_module
+
+    monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
+    monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")
+
+    created = []
+    for vendor, spec, weight in [("동경강업(주)", "SHD10", "1000"), ("대한제강", "SHD13", "500")]:
+        response = client.post(
+            "/invoices",
+            data={
+                "material_type": "철근",
+                "vendor": vendor,
+                "delivery_date": "2026-04-20",
+                "spec": spec,
+                "weight": weight,
+                "note": "",
+            },
+        )
+        created.append(response.json()["id"])
+
+    response = client.post(
+        "/reports/material-inspection",
+        data={**_form_fields(), "invoice_ids": ",".join(str(i) for i in created)},
+    )
+    assert response.status_code == 200
+    workbook = load_workbook(BytesIO(response.content))
+    sheet = workbook.active
+    assert sheet["F9"].value == "동경강업(주)"
+    assert sheet["F10"].value == "대한제강"
+    assert sheet["H35"].value == "2026-04-20"
+
+
+def test_create_report_from_invoice_ids_400_when_none_found():
+    response = client.post(
+        "/reports/material-inspection",
+        data={**_form_fields(), "invoice_ids": "999999,999998"},
+    )
+    assert response.status_code == 400
+    assert "선택한 송장 기록을 찾을 수 없습니다" in response.json()["detail"]
+
+
+def test_create_report_from_invoice_ids_takes_precedence_over_delivery_date(monkeypatch):
+    from app import excel as excel_module
+    from app import pdf as pdf_module
+
+    monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
+    monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")
+
+    response = client.post(
+        "/invoices",
+        data={
+            "material_type": "철근",
+            "vendor": "동경강업(주)",
+            "delivery_date": "2026-04-20",
+            "spec": "SHD10",
+            "weight": "1000",
+            "note": "",
+        },
+    )
+    invoice_id = response.json()["id"]
+
+    response = client.post(
+        "/reports/material-inspection",
+        data={**_form_fields(), "invoice_ids": str(invoice_id), "delivery_date": "2099-01-01"},
+    )
+    assert response.status_code == 200

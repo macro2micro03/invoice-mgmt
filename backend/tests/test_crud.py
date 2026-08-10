@@ -125,3 +125,23 @@ def test_delete_invoices_ignores_missing_ids(db_session):
 
 def test_delete_invoices_empty_list_returns_zero(db_session):
     assert crud.delete_invoices(db_session, []) == 0
+
+
+def test_list_invoices_by_ids_returns_only_matching_ids_in_id_order(db_session):
+    first = crud.create_invoice(db_session, make_invoice_data(vendor="A"))
+    second = crud.create_invoice(db_session, make_invoice_data(vendor="B"))
+    crud.create_invoice(db_session, make_invoice_data(vendor="C"))
+
+    results = crud.list_invoices_by_ids(db_session, [second.id, first.id])
+
+    assert [invoice.id for invoice in results] == [first.id, second.id]
+
+
+def test_list_invoices_by_ids_ignores_missing_ids(db_session):
+    kept = crud.create_invoice(db_session, make_invoice_data())
+    results = crud.list_invoices_by_ids(db_session, [kept.id, 999999])
+    assert [invoice.id for invoice in results] == [kept.id]
+
+
+def test_list_invoices_by_ids_empty_list_returns_empty(db_session):
+    assert crud.list_invoices_by_ids(db_session, []) == []

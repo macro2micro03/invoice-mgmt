@@ -100,7 +100,13 @@ export default function SearchPage() {
         </button>
       </div>
       {selectedIds.length > 0 && (
-        <div className="field">
+        <div className="field" style={{ flexDirection: 'row', gap: 8 }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate('/report', { state: { invoiceIds: selectedIds } })}
+          >
+            선택 항목으로 보고서 생성 ({selectedIds.length})
+          </button>
           <button className="btn btn-danger" onClick={handleBulkDelete} disabled={deleting}>
             {deleting ? '삭제 중...' : `선택 삭제 (${selectedIds.length})`}
           </button>
