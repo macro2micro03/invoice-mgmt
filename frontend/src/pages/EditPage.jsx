@@ -283,7 +283,7 @@ export default function EditPage() {
             <input className="photo-picker-input" type="file" accept="image/*" onChange={handleTagPhotoChange} />
           </label>
         </div>
-        <div className="field" style={{ marginTop: 24 }}>
+        <div className="field" style={{ marginTop: 18 }}>
           <label>강도 (자동 인식, 다르면 직접 수정)</label>
           <input
             className="input"
