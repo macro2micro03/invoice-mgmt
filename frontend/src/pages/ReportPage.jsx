@@ -86,7 +86,7 @@ export default function ReportPage() {
                 onClick={() => setMode('selected')}
                 style={{ flex: 1 }}
               >
-                선택 항목 ({invoiceIds.length}건)
+                선택 항목
               </button>
             )}
             <button
