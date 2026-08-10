@@ -140,6 +140,13 @@ def test_fill_material_inspection_form_centers_material_name_and_spec_columns():
         assert sheet[f"D{row}"].alignment.horizontal == "center"
 
 
+def test_fill_material_inspection_form_left_aligns_document_date():
+    xlsx_bytes, _ = _fill()
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert sheet["C27"].alignment.horizontal == "left"
+
+
 def test_fill_material_inspection_form_uses_korean_date_format_for_receipt_and_inspection_dates():
     xlsx_bytes, _ = _fill()
     wb = load_workbook(BytesIO(xlsx_bytes))

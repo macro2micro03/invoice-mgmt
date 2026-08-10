@@ -11,6 +11,7 @@ from openpyxl.worksheet.pagebreak import Break
 from . import report_photos
 
 CENTER_ALIGNMENT = Alignment(horizontal="center", vertical="center")
+LEFT_ALIGNMENT = Alignment(horizontal="left", vertical="center")
 
 TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "material_inspection_form.xlsx"
 
@@ -114,6 +115,7 @@ def fill_material_inspection_form(
         sheet[f"F{row}"] = spec_row.get("vendor", vendor)
 
     sheet["C27"] = today
+    sheet["C27"].alignment = LEFT_ALIGNMENT
     sheet["H27"] = today
     sheet["C28"] = f" {sender}    (인)"
     sheet["H28"] = f" {receiver}    (인)"
