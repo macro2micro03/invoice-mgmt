@@ -47,6 +47,14 @@ async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(N
         return {**{field: "" for field in ocr.TAG_FIELDS}, "tag_match_status": None}
 
     text = ocr.extract_text(raw_response)
+    if not text:
+        logger.warning(
+            "택 이미지에서 텍스트를 전혀 추출하지 못함 (filename=%s, bytes=%d) — 응답 키: %s, elements 개수: %d",
+            file.filename,
+            len(image_bytes),
+            list(raw_response.keys()),
+            len(raw_response.get("elements", [])),
+        )
     fields = ocr.normalize_tag_fields(text)
     if not fields["tag_grade"] or not fields["tag_diameter"]:
         logger.warning(
