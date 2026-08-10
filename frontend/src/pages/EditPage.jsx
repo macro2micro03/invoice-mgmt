@@ -17,7 +17,7 @@ const ITEM_FIELD_DEFS = [
   ['note', '비고'],
 ]
 
-const GRADE_BY_PREFIX = { SHD: 'SD500', UHD: 'SD600' }
+const GRADE_BY_PREFIX = { SD: 'SD400', SHD: 'SD500', UHD: 'SD600' }
 
 function parseSpecGradeDiameter(spec) {
   if (!spec) return [null, null]

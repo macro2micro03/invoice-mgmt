@@ -1,6 +1,7 @@
 import re
 
 GRADE_BY_PREFIX = {
+    "SD": "SD400",
     "SHD": "SD500",
     "UHD": "SD600",
 }

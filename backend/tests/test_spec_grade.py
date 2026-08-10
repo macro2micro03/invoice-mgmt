@@ -1,6 +1,10 @@
 from app.spec_grade import match_tag_to_spec, parse_spec_grade_diameter
 
 
+def test_parse_spec_grade_diameter_sd_is_sd400():
+    assert parse_spec_grade_diameter("SD13") == ("SD400", "13")
+
+
 def test_parse_spec_grade_diameter_shd_is_sd500():
     assert parse_spec_grade_diameter("SHD13") == ("SD500", "13")
 
