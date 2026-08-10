@@ -150,3 +150,27 @@ export async function createMaterialInspectionReport(fields, files, photoSets = 
   const filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : null
   return { blob, warnings, filename }
 }
+
+export async function createMaterialLedger(invoiceIds, inspector, supervisor) {
+  const formData = new FormData()
+  formData.append('invoice_ids', invoiceIds.join(','))
+  if (inspector) formData.append('inspector', inspector)
+  if (supervisor) formData.append('supervisor', supervisor)
+  const response = await fetch(`${API_BASE}/reports/material-ledger`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  })
+  handleUnauthorized(response)
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(body.detail || '수불부 생성에 실패했습니다')
+  }
+  const blob = await response.blob()
+  const encodedWarnings = response.headers.get('X-Report-Warnings')
+  const warnings = encodedWarnings ? decodeURIComponent(encodedWarnings) : null
+  const contentDisposition = response.headers.get('Content-Disposition') || ''
+  const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/)
+  const filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : null
+  return { blob, warnings, filename }
+}
