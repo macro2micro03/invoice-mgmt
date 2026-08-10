@@ -15,15 +15,12 @@ export default function ReportPage() {
   const [sender, setSender] = useState('')
   const [receiver, setReceiver] = useState('')
   const [files, setFiles] = useState([])
-  const [deliveryDate, setDeliveryDate] = useState('')
   const [photoSets, setPhotoSets] = useState([{ top: [], bottom: [] }])
   const [error, setError] = useState('')
   const [warning, setWarning] = useState('')
   const [generating, setGenerating] = useState(false)
 
-  const effectiveMaterialType = mode === 'date' ? '철근' : materialType
-  const canSubmit =
-    mode === 'file' ? files.length > 0 : mode === 'date' ? !!deliveryDate : invoiceIds.length > 0
+  const canSubmit = mode === 'file' ? files.length > 0 : invoiceIds.length > 0
 
   function handleAddPhotoSet() {
     setPhotoSets((prev) => (prev.length < MAX_PHOTO_SETS ? [...prev, { top: [], bottom: [] }] : prev))
@@ -47,19 +44,19 @@ export default function ReportPage() {
         {
           project_name: projectName,
           work_type: workType,
-          material_type: effectiveMaterialType,
+          material_type: materialType,
           sender,
           receiver,
         },
         mode === 'file' ? files : [],
         photoSets,
-        mode === 'date' ? deliveryDate : '',
+        '',
         mode === 'selected' ? invoiceIds : [],
       )
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `자재검수요청서-${effectiveMaterialType || '자재'}.xlsx`
+      link.download = `자재검수요청서-${materialType || '자재'}.xlsx`
       link.click()
       URL.revokeObjectURL(url)
       if (warnings) {
@@ -79,16 +76,14 @@ export default function ReportPage() {
         <div className="field">
           <label>생성 방식</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            {invoiceIds.length > 0 && (
-              <button
-                type="button"
-                className={`btn ${mode === 'selected' ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setMode('selected')}
-                style={{ flex: 1 }}
-              >
-                선택 항목
-              </button>
-            )}
+            <button
+              type="button"
+              className={`btn ${mode === 'selected' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setMode('selected')}
+              style={{ flex: 1 }}
+            >
+              선택 항목 ({invoiceIds.length}건)
+            </button>
             <button
               type="button"
               className={`btn ${mode === 'file' ? 'btn-primary' : 'btn-secondary'}`}
@@ -96,14 +91,6 @@ export default function ReportPage() {
               style={{ flex: 1 }}
             >
               파일 업로드
-            </button>
-            <button
-              type="button"
-              className={`btn ${mode === 'date' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setMode('date')}
-              style={{ flex: 1 }}
-            >
-              날짜로 생성
             </button>
           </div>
         </div>
@@ -124,9 +111,8 @@ export default function ReportPage() {
           <label>자재종류</label>
           <input
             className="input"
-            value={effectiveMaterialType}
+            value={materialType}
             onChange={(e) => setMaterialType(e.target.value)}
-            disabled={mode === 'date'}
             required
           />
         </div>
@@ -145,17 +131,6 @@ export default function ReportPage() {
             files={files}
             onFilesChange={setFiles}
           />
-        )}
-        {mode === 'date' && (
-          <div className="field">
-            <label>반입일자</label>
-            <input
-              className="input"
-              type="date"
-              value={deliveryDate}
-              onChange={(e) => setDeliveryDate(e.target.value)}
-            />
-          </div>
         )}
         {mode === 'selected' && (
           <p className="banner banner-success">
