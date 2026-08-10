@@ -145,5 +145,8 @@ export async function createMaterialInspectionReport(fields, files, photoSets = 
   const blob = await response.blob()
   const encodedWarnings = response.headers.get('X-Report-Warnings')
   const warnings = encodedWarnings ? decodeURIComponent(encodedWarnings) : null
-  return { blob, warnings }
+  const contentDisposition = response.headers.get('Content-Disposition') || ''
+  const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/)
+  const filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : null
+  return { blob, warnings, filename }
 }

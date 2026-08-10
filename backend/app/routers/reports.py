@@ -124,7 +124,7 @@ async def create_material_inspection_report(
             f"자재 규격이 {len(skipped_specs)}개 더 있었지만 표 용량을 초과해 제외했습니다"
         )
 
-    filename = f"{document_number}.xlsx"
+    filename = f"자재검수요청서_{date.today():%y%m%d}_{report_number}.xlsx"
     encoded_filename = quote(filename)
     headers = {
         "Content-Disposition": (

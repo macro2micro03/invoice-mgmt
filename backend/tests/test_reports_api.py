@@ -1,3 +1,4 @@
+from datetime import date
 from urllib.parse import unquote
 
 from openpyxl import load_workbook
@@ -162,8 +163,9 @@ def test_create_report_content_disposition_korean_filename(monkeypatch):
     encoded_part = content_disposition.split("filename*=UTF-8''")[1]
     decoded_filename = unquote(encoded_part)
 
-    assert decoded_filename.startswith("건축(자검) - 철근 - ")
-    assert decoded_filename.endswith("호.xlsx")
+    today = date.today()
+    assert decoded_filename.startswith(f"자재검수요청서_{today:%y%m%d}_")
+    assert decoded_filename.endswith(".xlsx")
 
 
 def test_create_report_no_warning_header_when_everything_parses_cleanly(monkeypatch):
@@ -389,13 +391,9 @@ def test_create_report_from_delivery_date_forces_material_type_to_rebar(monkeypa
     )
     assert response.status_code == 200
 
-    content_disposition = response.headers.get("content-disposition", "")
-    encoded_part = content_disposition.split("filename*=UTF-8''")[1]
-    decoded_filename = unquote(encoded_part)
-    assert decoded_filename.startswith("건축(자검) - 철근 - ")
-
     workbook = load_workbook(BytesIO(response.content))
     sheet = workbook.active
+    assert sheet["B4"].value.startswith("건축(자검) - 철근 - ")
     assert sheet["A9"].value == "철근"
     assert sheet["C39"].value.startswith("철근")
 

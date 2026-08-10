@@ -40,7 +40,7 @@ export default function ReportPage() {
     setWarning('')
     setGenerating(true)
     try {
-      const { blob, warnings } = await createMaterialInspectionReport(
+      const { blob, warnings, filename } = await createMaterialInspectionReport(
         {
           project_name: projectName,
           work_type: workType,
@@ -56,7 +56,7 @@ export default function ReportPage() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `자재검수요청서-${materialType || '자재'}.xlsx`
+      link.download = filename || `자재검수요청서-${materialType || '자재'}.xlsx`
       link.click()
       URL.revokeObjectURL(url)
       if (warnings) {
