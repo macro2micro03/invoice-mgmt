@@ -129,6 +129,58 @@ def test_tag_ocr_endpoint_parses_table_shaped_response_without_concatenation(mon
     assert body["tag_match_status"] == "matched"
 
 
+def test_tag_ocr_endpoint_falls_back_to_text_ocr_when_document_parse_finds_no_text(monkeypatch):
+    # 문서 구조가 없는 사물 사진(택 근접 촬영 등)은 document-parse가 요소를
+    # 하나도 인식하지 못해 빈 텍스트를 반환할 수 있다. 이 경우 일반 텍스트
+    # 인식 API를 보조로 호출해 복구를 시도해야 한다.
+    monkeypatch.setattr(ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": {"elements": []})
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_text_ocr",
+        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD500\n"},
+    )
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_diameter"] == "13"
+    assert body["tag_grade"] == "SD500"
+    assert body["tag_match_status"] == "matched"
+
+
+def test_tag_ocr_endpoint_does_not_fall_back_when_document_parse_succeeds(monkeypatch):
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_ocr",
+        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD500\n"},
+    )
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("fallback text OCR should not be called when document-parse already found text")
+
+    monkeypatch.setattr(ocr_module, "call_upstage_text_ocr", fail_if_called)
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    assert response.json()["tag_grade"] == "SD500"
+
+
+def test_tag_ocr_endpoint_returns_blank_fields_when_fallback_also_finds_nothing(monkeypatch):
+    monkeypatch.setattr(ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": {"elements": []})
+    monkeypatch.setattr(ocr_module, "call_upstage_text_ocr", lambda image_bytes, filename="x": {"elements": []})
+    response = client.post("/ocr/tag", files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")})
+    assert response.status_code == 200
+    body = response.json()
+    for field in ocr_module.TAG_FIELDS:
+        assert body[field] == ""
+
+
 def test_tag_ocr_endpoint_returns_blank_fields_on_ocr_failure(monkeypatch):
     def raise_error(*args, **kwargs):
         raise RuntimeError("network error")

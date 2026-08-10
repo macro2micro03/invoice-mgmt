@@ -86,6 +86,21 @@ def call_upstage_ocr(image_bytes: bytes, filename: str = "invoice.jpg") -> dict:
     return response.json()
 
 
+def call_upstage_text_ocr(image_bytes: bytes, filename: str = "tag.jpg") -> dict:
+    """document-parse가 문서 구조를 전혀 인식하지 못했을 때(요소 0개) 보조로
+    사용하는 일반 텍스트 인식 API. 표/레이아웃 정보 없이 인식된 글자만 돌려준다."""
+    if not config.UPSTAGE_API_KEY:
+        raise RuntimeError("UPSTAGE_API_KEY가 설정되지 않았습니다")
+    response = requests.post(
+        config.UPSTAGE_TEXT_OCR_URL,
+        headers={"Authorization": f"Bearer {config.UPSTAGE_API_KEY}"},
+        files={"document": (filename, image_bytes)},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def _content_to_text(content: dict) -> str:
     """Upstage document-parse는 content.text가 빈 문자열이고 실제 내용은
     content.html에 <br> 태그로 줄바꿈된 HTML로 들어있는 경우가 많다."""
