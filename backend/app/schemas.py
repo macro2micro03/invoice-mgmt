@@ -33,6 +33,10 @@ class InvoiceUpdate(InvoiceBase):
     pass
 
 
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
+
+
 class InvoiceOut(InvoiceBase):
     id: int
     photo_path: Optional[str] = None

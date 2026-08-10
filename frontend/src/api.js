@@ -86,6 +86,17 @@ export async function deleteInvoice(id) {
   if (!response.ok) throw new Error('삭제 실패')
 }
 
+export async function bulkDeleteInvoices(ids) {
+  const response = await fetch(`${API_BASE}/invoices/bulk-delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ ids }),
+  })
+  handleUnauthorized(response)
+  if (!response.ok) throw new Error('일괄 삭제 실패')
+  return response.json()
+}
+
 export async function updateInvoice(id, fields) {
   const response = await fetch(`${API_BASE}/invoices/${id}`, {
     method: 'PUT',

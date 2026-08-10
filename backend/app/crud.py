@@ -68,6 +68,18 @@ def delete_invoice(db: Session, invoice_id: int) -> bool:
     return True
 
 
+def delete_invoices(db: Session, invoice_ids: list[int]) -> int:
+    if not invoice_ids:
+        return 0
+    deleted_count = (
+        db.query(models.Invoice)
+        .filter(models.Invoice.id.in_(invoice_ids))
+        .delete(synchronize_session="fetch")
+    )
+    db.commit()
+    return deleted_count
+
+
 def list_invoices_by_material_and_date(db: Session, material_type: str, delivery_date: date) -> list[models.Invoice]:
     return (
         db.query(models.Invoice)

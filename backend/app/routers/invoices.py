@@ -131,3 +131,9 @@ def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
     deleted = crud.delete_invoice(db, invoice_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="송장을 찾을 수 없습니다")
+
+
+@router.post("/invoices/bulk-delete")
+def bulk_delete_invoices(data: schemas.BulkDeleteRequest, db: Session = Depends(get_db)):
+    deleted_count = crud.delete_invoices(db, data.ids)
+    return {"deleted": deleted_count}

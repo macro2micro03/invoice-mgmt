@@ -101,3 +101,27 @@ def test_delete_invoice_removes_record_and_returns_true(db_session):
 
 def test_delete_invoice_missing_returns_false(db_session):
     assert crud.delete_invoice(db_session, 999999) is False
+
+
+def test_delete_invoices_removes_only_given_ids_and_returns_count(db_session):
+    kept = crud.create_invoice(db_session, make_invoice_data(vendor="유지"))
+    removed1 = crud.create_invoice(db_session, make_invoice_data(vendor="삭제1"))
+    removed2 = crud.create_invoice(db_session, make_invoice_data(vendor="삭제2"))
+
+    deleted_count = crud.delete_invoices(db_session, [removed1.id, removed2.id])
+
+    assert deleted_count == 2
+    assert crud.get_invoice(db_session, removed1.id) is None
+    assert crud.get_invoice(db_session, removed2.id) is None
+    assert crud.get_invoice(db_session, kept.id) is not None
+
+
+def test_delete_invoices_ignores_missing_ids(db_session):
+    kept = crud.create_invoice(db_session, make_invoice_data())
+    deleted_count = crud.delete_invoices(db_session, [999999, kept.id + 1])
+    assert deleted_count == 0
+    assert crud.get_invoice(db_session, kept.id) is not None
+
+
+def test_delete_invoices_empty_list_returns_zero(db_session):
+    assert crud.delete_invoices(db_session, []) == 0

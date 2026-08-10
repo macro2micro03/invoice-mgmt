@@ -152,3 +152,26 @@ def test_delete_invoice_removes_it(monkeypatch):
 def test_delete_invoice_missing_returns_404():
     response = client.delete("/invoices/999999")
     assert response.status_code == 404
+
+
+def test_bulk_delete_invoices_removes_selected_ids(monkeypatch):
+    monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
+    monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")
+
+    id1 = client.post("/invoices", data={"material_type": "철근", "vendor": "일괄1"}).json()["id"]
+    id2 = client.post("/invoices", data={"material_type": "철근", "vendor": "일괄2"}).json()["id"]
+    kept_id = client.post("/invoices", data={"material_type": "철근", "vendor": "유지"}).json()["id"]
+
+    response = client.post("/invoices/bulk-delete", json={"ids": [id1, id2]})
+    assert response.status_code == 200
+    assert response.json() == {"deleted": 2}
+
+    assert client.get(f"/invoices/{id1}").status_code == 404
+    assert client.get(f"/invoices/{id2}").status_code == 404
+    assert client.get(f"/invoices/{kept_id}").status_code == 200
+
+
+def test_bulk_delete_invoices_empty_ids_returns_zero():
+    response = client.post("/invoices/bulk-delete", json={"ids": []})
+    assert response.status_code == 200
+    assert response.json() == {"deleted": 0}
