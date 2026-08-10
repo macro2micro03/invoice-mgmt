@@ -48,6 +48,14 @@ async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(N
 
     text = ocr.extract_text(raw_response)
     fields = ocr.normalize_tag_fields(text)
+    if not fields["tag_grade"] or not fields["tag_diameter"]:
+        logger.warning(
+            "택에서 강도/직경 인식 실패 (filename=%s, tag_grade=%r, tag_diameter=%r) — 텍스트 미리보기: %r",
+            file.filename,
+            fields["tag_grade"],
+            fields["tag_diameter"],
+            text[:500],
+        )
     tag_match_status = None
     if spec:
         tag_match_status = spec_grade.match_tag_to_spec(

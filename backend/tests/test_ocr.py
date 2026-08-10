@@ -184,6 +184,18 @@ def test_normalize_tag_fields_missing_label_returns_empty_strings():
         assert fields[field] == ""
 
 
+def test_normalize_tag_fields_handles_table_concatenated_line_with_unrelated_trailing_labels():
+    # 현대제철 스타일 택이 표(table)로 인식되어 <br> 없이 한 줄로 뭉쳐지면,
+    # "강종" 라벨 뒤의 비탐욕적 캡처가 "규격"/"제강번호"/"본수"/"무게"처럼
+    # 택 필드 라벨 목록에 없는 다음 행 라벨들까지 전부 삼켜 강도 자리에
+    # 한글이 섞인 값이 들어갈 수 있다. 이런 오염된 값은 버리고 강도/직경
+    # 패턴으로 다시 복구해야 한다.
+    text = "종류이형봉강강종SD600규격D16X8M제강번호K347001027본수150무게1872kg"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_grade"] == "SD600"
+    assert fields["tag_diameter"] == "16"
+
+
 def test_normalize_tag_fields_handles_table_concatenated_line():
     # Upstage document-parse는 표(table) 요소를 <br> 없이 셀만 이어붙여
     # HTML 태그를 제거하면 한 줄로 뭉쳐진다. 예: "현장명서소문 재개발직경13강도SD500"

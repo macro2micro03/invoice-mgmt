@@ -49,9 +49,14 @@ _TAG_LABEL_LOOKAHEAD = "|".join(re.escape(label) for label in _ALL_TAG_LABELS)
 # 표기 자체만 표에 나열되는 경우가 대부분이다(제조사마다 "종류의기호"/"강종" 등
 # 서로 다른 항목명을 쓰고, 현장 가공 택은 항목명 자체가 없기도 하다). 라벨 매칭이
 # 실패했을 때 이 표기를 직접 찾아 강도/직경을 복구하는 보조 수단이다.
-_PREFIXED_SPEC_PATTERN = re.compile(r"\b(SHD|UHD|SD)(\d{1,2})(?!\d)")
-_BARE_GRADE_PATTERN = re.compile(r"\bSD([456]00)(?!\d)")
-_DIAMETER_PATTERN = re.compile(r"(?<![A-Za-z])D(\d{1,2})(?!\d)")
+
+# 한글은 파이썬 정규식에서 \w(단어 문자)로 취급되어, "강종SD600"처럼 값 바로
+# 앞에 한글이 붙어있으면 \b가 경계로 인식되지 않아 매칭에 실패한다. 그래서
+# \b 대신 "바로 앞이 영문/숫자가 아님"을 명시하는 lookbehind를 사용한다.
+_PREFIXED_SPEC_PATTERN = re.compile(r"(?<![A-Za-z0-9])(SHD|UHD|SD)(\d{1,2})(?!\d)")
+_BARE_GRADE_PATTERN = re.compile(r"(?<![A-Za-z0-9])SD([456]00)(?!\d)")
+_DIAMETER_PATTERN = re.compile(r"(?<![A-Za-z0-9])D(\d{1,2})(?!\d)")
+_HANGUL_PATTERN = re.compile(r"[가-힣]")
 
 
 def _fallback_tag_grade_diameter(text: str) -> tuple[str, str]:
@@ -160,6 +165,14 @@ def normalize_tag_fields(raw_text: str) -> dict:
                     if value and value != label:
                         result[field] = value
                         break
+
+    # 표가 <br> 없이 한 줄로 뭉쳐진 경우, 라벨 뒤 캡처가 다음 항목의 한글
+    # 라벨/값까지 삼켜 강도·직경 자리에 한글이 섞인 값이 들어갈 수 있다.
+    # 이런 오염된 값은 버려서 아래 fallback 패턴 추출로 다시 시도하게 한다.
+    if _HANGUL_PATTERN.search(result["tag_grade"]):
+        result["tag_grade"] = ""
+    if _HANGUL_PATTERN.search(result["tag_diameter"]):
+        result["tag_diameter"] = ""
 
     if not result["tag_grade"] or not result["tag_diameter"]:
         fallback_grade, fallback_diameter = _fallback_tag_grade_diameter(raw_text)
