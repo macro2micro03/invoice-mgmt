@@ -142,38 +142,50 @@ export default function LedgerPage() {
         <p className="banner banner-warning">아직 수불부에 포함된 기록이 없습니다.</p>
       ) : (
         <div className="table-wrap">
-          <table className="table">
+          <table className="table" style={{ textAlign: 'center' }}>
             <thead>
               <tr>
-                <th>연번</th>
-                <th>반입일</th>
-                <th>규격</th>
-                <th>반입량</th>
+                <th style={{ textAlign: 'center' }}>연번</th>
+                <th style={{ textAlign: 'center' }}>반입일</th>
+                <th style={{ textAlign: 'center' }}>규격</th>
+                <th style={{ textAlign: 'center' }}>반입량</th>
                 {MANUAL_FIELDS.map(([key, label]) => (
-                  <th key={key}>{label}</th>
+                  <th
+                    key={key}
+                    style={{
+                      textAlign: 'center',
+                      ...(key === 'inspector' || key === 'supervisor' ? { minWidth: 130 } : {}),
+                    }}
+                  >
+                    {label}
+                  </th>
                 ))}
-                <th>제외</th>
+                <th style={{ textAlign: 'center' }}>제외</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((entry, index) => (
                 <tr key={entry.invoice_id}>
-                  <td>{index + 1}</td>
-                  <td>{entry.delivery_date ?? ''}</td>
-                  <td>{entry.spec ?? ''}</td>
-                  <td>{entry.weight ?? ''}</td>
+                  <td style={{ textAlign: 'center' }}>{index + 1}</td>
+                  <td style={{ textAlign: 'center' }}>{entry.delivery_date ?? ''}</td>
+                  <td style={{ textAlign: 'center' }}>{entry.spec ?? ''}</td>
+                  <td style={{ textAlign: 'center' }}>{entry.weight ?? ''}</td>
                   {MANUAL_FIELDS.map(([key]) => (
-                    <td key={key}>
+                    <td
+                      key={key}
+                      style={key === 'inspector' || key === 'supervisor' ? { minWidth: 130 } : undefined}
+                    >
                       <input
                         className="input"
                         type={key.includes('date') ? 'date' : key.includes('qty') ? 'number' : 'text'}
                         value={entry[key] ?? ''}
                         onChange={(e) => handleFieldChange(entry.invoice_id, key, e.target.value)}
                         onBlur={() => handleFieldBlur(entry.invoice_id)}
+                        style={{ textAlign: 'center', width: '100%' }}
                       />
                     </td>
                   ))}
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     <button type="button" className="btn btn-danger" onClick={() => handleExclude(entry.invoice_id)}>
                       제외
                     </button>
