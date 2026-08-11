@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from .database import Base
@@ -31,6 +32,23 @@ class Invoice(Base):
     tag_match_status = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class LedgerEntry(Base):
+    __tablename__ = "ledger_entries"
+
+    id = Column(Integer, primary_key=True)
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False, unique=True)
+    defect_qty = Column(Float, nullable=True)
+    defect_reason = Column(String, nullable=True)
+    release_date = Column(Date, nullable=True)
+    release_qty = Column(Float, nullable=True)
+    remaining_qty = Column(Float, nullable=True)
+    inspector = Column(String, nullable=True)
+    supervisor = Column(String, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    invoice = relationship("Invoice")
 
 
 class ReportSequence(Base):
