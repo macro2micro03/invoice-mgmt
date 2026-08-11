@@ -46,3 +46,22 @@ def test_insert_photo_grid_preserves_aspect_ratio_within_cell_bounds():
     assert image.width <= report_photos.BLOCK_WIDTH_PX
     assert image.height <= report_photos.BLOCK_HEIGHT_PX
     assert abs((image.width / image.height) - (800 / 200)) < 0.05
+
+
+def test_insert_photo_grid_leaves_padding_around_photo():
+    wb = Workbook()
+    sheet = wb.active
+    # 정사각형 큰 사진 하나 -> 1x1 격자, 칸 전체를 채울 수 있는 크기라 여백이 있어야만
+    # 실제 렌더 크기가 칸보다 작게 나온다.
+    photos = [_make_test_image_bytes(width=2000, height=2000)]
+    report_photos.insert_photo_grid(sheet, anchor_row=81, photos=photos)
+    image = sheet._images[0]
+    assert image.width <= report_photos.BLOCK_WIDTH_PX - 2 * report_photos.CELL_PADDING_PX
+    assert image.height <= report_photos.BLOCK_HEIGHT_PX - 2 * report_photos.CELL_PADDING_PX
+
+    from openpyxl.utils.units import EMU_to_pixels
+
+    col_off_px = EMU_to_pixels(image.anchor._from.colOff)
+    row_off_px = EMU_to_pixels(image.anchor._from.rowOff)
+    assert col_off_px >= report_photos.CELL_PADDING_PX - 1
+    assert row_off_px >= report_photos.CELL_PADDING_PX - 1
