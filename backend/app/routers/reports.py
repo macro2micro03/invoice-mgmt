@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from .. import crud, ocr, report_excel, report_from_records, report_ledger, report_parser
+from .. import crud, ocr, report_excel, report_from_records, report_ledger, report_parser, schemas
 from ..auth import verify_password
 from ..database import get_db
 
@@ -155,27 +155,13 @@ async def create_material_ledger(
     except ValueError as error:
         raise HTTPException(status_code=400, detail="선택 항목 형식이 올바르지 않습니다") from error
 
-    invoices = crud.list_invoices_by_ids(db, ids)
-    if not invoices:
-        raise HTTPException(status_code=400, detail="선택한 송장 기록을 찾을 수 없습니다")
+    _new_entries, skipped_count = crud.create_ledger_entries(db, ids, inspector, supervisor)
 
-    excluded_count = sum(
-        1 for invoice in invoices if invoice.item_name == "커플러" or invoice.material_type != "철근"
-    )
-    rebar_invoices = sorted(
-        (
-            invoice
-            for invoice in invoices
-            if invoice.item_name != "커플러" and invoice.material_type == "철근"
-        ),
-        key=lambda invoice: invoice.delivery_date or date.min,
-    )
-    if not rebar_invoices:
-        raise HTTPException(status_code=400, detail="선택한 기록 중 철근 자재 기록이 없습니다")
+    ledger_entries = crud.list_ledger_entries(db)
+    if not ledger_entries:
+        raise HTTPException(status_code=400, detail="수불부에 포함할 철근 자재 기록이 없습니다")
 
-    xlsx_bytes = report_ledger.fill_material_ledger(
-        report_ledger.TEMPLATE_PATH, rebar_invoices, inspector, supervisor
-    )
+    xlsx_bytes = report_ledger.fill_material_ledger(report_ledger.TEMPLATE_PATH, ledger_entries)
 
     filename = f"주요자재검사및수불부_{date.today():%y%m%d}.xlsx"
     encoded_filename = quote(filename)
@@ -184,9 +170,9 @@ async def create_material_ledger(
             f"attachment; filename=\"ledger.xlsx\"; filename*=UTF-8''{encoded_filename}"
         )
     }
-    if excluded_count:
+    if skipped_count:
         headers["X-Report-Warnings"] = quote(
-            f"커플러 또는 철근이 아닌 자재 {excluded_count}건은 수불부에서 제외했습니다"
+            f"이미 포함되었거나 대상이 아닌 자재 {skipped_count}건은 건너뛰었습니다"
         )
 
     return Response(
@@ -194,3 +180,38 @@ async def create_material_ledger(
         media_type=XLSX_MEDIA_TYPE,
         headers=headers,
     )
+
+
+def _ledger_entry_to_out(entry) -> dict:
+    return {
+        "invoice_id": entry.invoice_id,
+        "delivery_date": entry.invoice.delivery_date,
+        "spec": entry.invoice.spec,
+        "weight": entry.invoice.weight,
+        "defect_qty": entry.defect_qty,
+        "defect_reason": entry.defect_reason,
+        "release_date": entry.release_date,
+        "release_qty": entry.release_qty,
+        "remaining_qty": entry.remaining_qty,
+        "inspector": entry.inspector,
+        "supervisor": entry.supervisor,
+    }
+
+
+@router.get("/reports/material-ledger/entries", response_model=list[schemas.LedgerEntryOut])
+def get_ledger_entries(db: Session = Depends(get_db)):
+    entries = crud.list_ledger_entries(db)
+    return [_ledger_entry_to_out(entry) for entry in entries]
+
+
+@router.put("/reports/material-ledger/entries/{invoice_id}", response_model=schemas.LedgerEntryOut)
+def update_ledger_entry(invoice_id: int, data: schemas.LedgerEntryUpdate, db: Session = Depends(get_db)):
+    entry = crud.update_ledger_entry(db, invoice_id, data.model_dump())
+    if entry is None:
+        raise HTTPException(status_code=404, detail="수불부 항목을 찾을 수 없습니다")
+    return _ledger_entry_to_out(entry)
+
+
+@router.delete("/reports/material-ledger/entries/{invoice_id}", status_code=204)
+def delete_ledger_entry(invoice_id: int, db: Session = Depends(get_db)):
+    crud.delete_ledger_entry(db, invoice_id)

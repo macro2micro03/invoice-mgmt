@@ -37,6 +37,30 @@ class BulkDeleteRequest(BaseModel):
     ids: list[int]
 
 
+class LedgerEntryUpdate(BaseModel):
+    defect_qty: Optional[float] = None
+    defect_reason: Optional[str] = None
+    release_date: Optional[date] = None
+    release_qty: Optional[float] = None
+    remaining_qty: Optional[float] = None
+    inspector: Optional[str] = None
+    supervisor: Optional[str] = None
+
+
+class LedgerEntryOut(BaseModel):
+    invoice_id: int
+    delivery_date: Optional[date] = None
+    spec: Optional[str] = None
+    weight: Optional[float] = None
+    defect_qty: Optional[float] = None
+    defect_reason: Optional[str] = None
+    release_date: Optional[date] = None
+    release_qty: Optional[float] = None
+    remaining_qty: Optional[float] = None
+    inspector: Optional[str] = None
+    supervisor: Optional[str] = None
+
+
 class InvoiceOut(InvoiceBase):
     id: int
     photo_path: Optional[str] = None
