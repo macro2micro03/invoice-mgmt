@@ -63,6 +63,9 @@ def delete_invoice(db: Session, invoice_id: int) -> bool:
     invoice = get_invoice(db, invoice_id)
     if invoice is None:
         return False
+    db.query(models.LedgerEntry).filter(models.LedgerEntry.invoice_id == invoice_id).delete(
+        synchronize_session=False
+    )
     db.delete(invoice)
     db.commit()
     return True
@@ -71,6 +74,9 @@ def delete_invoice(db: Session, invoice_id: int) -> bool:
 def delete_invoices(db: Session, invoice_ids: list[int]) -> int:
     if not invoice_ids:
         return 0
+    db.query(models.LedgerEntry).filter(models.LedgerEntry.invoice_id.in_(invoice_ids)).delete(
+        synchronize_session=False
+    )
     deleted_count = (
         db.query(models.Invoice)
         .filter(models.Invoice.id.in_(invoice_ids))

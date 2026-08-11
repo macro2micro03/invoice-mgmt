@@ -127,6 +127,27 @@ def test_delete_invoices_empty_list_returns_zero(db_session):
     assert crud.delete_invoices(db_session, []) == 0
 
 
+def test_delete_invoice_also_removes_its_ledger_entry(db_session):
+    invoice = crud.create_invoice(db_session, make_invoice_data())
+    crud.create_ledger_entries(db_session, [invoice.id], "검수자", "감리원")
+
+    assert crud.delete_invoice(db_session, invoice.id) is True
+
+    assert crud.get_invoice(db_session, invoice.id) is None
+    assert crud.list_ledger_entries(db_session) == []
+
+
+def test_delete_invoices_also_removes_their_ledger_entries(db_session):
+    invoice1 = crud.create_invoice(db_session, make_invoice_data(vendor="삭제1"))
+    invoice2 = crud.create_invoice(db_session, make_invoice_data(vendor="삭제2"))
+    crud.create_ledger_entries(db_session, [invoice1.id, invoice2.id], "검수자", "감리원")
+
+    deleted_count = crud.delete_invoices(db_session, [invoice1.id, invoice2.id])
+
+    assert deleted_count == 2
+    assert crud.list_ledger_entries(db_session) == []
+
+
 def test_list_invoices_by_ids_returns_only_matching_ids_in_id_order(db_session):
     first = crud.create_invoice(db_session, make_invoice_data(vendor="A"))
     second = crud.create_invoice(db_session, make_invoice_data(vendor="B"))
