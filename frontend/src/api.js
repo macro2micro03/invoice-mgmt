@@ -174,3 +174,32 @@ export async function createMaterialLedger(invoiceIds, inspector, supervisor) {
   const filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : null
   return { blob, warnings, filename }
 }
+
+export async function getLedgerEntries() {
+  const response = await fetch(`${API_BASE}/reports/material-ledger/entries`, {
+    headers: authHeaders(),
+  })
+  handleUnauthorized(response)
+  if (!response.ok) throw new Error('수불부 목록 조회 실패')
+  return response.json()
+}
+
+export async function updateLedgerEntry(invoiceId, fields) {
+  const response = await fetch(`${API_BASE}/reports/material-ledger/entries/${invoiceId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(fields),
+  })
+  handleUnauthorized(response)
+  if (!response.ok) throw new Error('수불부 항목 수정 실패')
+  return response.json()
+}
+
+export async function deleteLedgerEntry(invoiceId) {
+  const response = await fetch(`${API_BASE}/reports/material-ledger/entries/${invoiceId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  handleUnauthorized(response)
+  if (!response.ok) throw new Error('수불부 항목 삭제 실패')
+}
