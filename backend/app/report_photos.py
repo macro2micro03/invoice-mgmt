@@ -8,7 +8,8 @@ from openpyxl.utils.units import pixels_to_EMU
 from PIL import Image as PILImage
 
 BLOCK_WIDTH_PX = 658
-BLOCK_HEIGHT_PX = 378
+# 사진대지 블록 행(81/84행) 높이를 9.5cm로 줄인 데 맞춘 값 (9.5cm = 269.29pt = 359px @96dpi)
+BLOCK_HEIGHT_PX = 359
 
 
 def compute_grid(count: int) -> tuple[int, int]:
