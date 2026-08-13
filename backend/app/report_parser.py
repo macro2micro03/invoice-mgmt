@@ -94,8 +94,11 @@ def _find_labeled_value(text: str, label: str) -> str:
     value = match.group("value").strip()
     if value:
         return re.sub(r"\s+", " ", value).strip()
-    if match.group("colon"):
-        return ""
+    # 콜론이 있어도(예: "납품일:" 바로 뒤 줄바꿈) 값이 폭 제한으로 다음 줄에
+    # 줄바꿈되어 들어오는 실제 문서 레이아웃이 있다(Round 4). 콜론 유무와
+    # 무관하게 다음 줄 후보를 동일한 그럴듯함 검사로 걸러내면, 진짜로 값이
+    # 비어 있는 경우(다음 줄이 무관한 문단/라벨)는 여전히 빈 문자열을 반환하고,
+    # 실제로 줄바꿈된 값만 올바르게 집어낸다.
     next_line_match = re.match(r"[ \t]*\r?\n([^\n]*)", text[match.end():])
     if not next_line_match:
         return ""
@@ -173,15 +176,27 @@ def _looks_like_cover_title_annotation(collapsed: str) -> bool:
 
 def find_cover_pages(raw_response: dict) -> list[int]:
     pages = set()
+    all_pages = set()
     for element in raw_response.get("elements", []):
+        page = element.get("page")
+        if page is not None:
+            all_pages.add(page)
         if element.get("category") not in TITLE_CATEGORIES:
             continue
         text = ocr._content_to_text(element.get("content", {}))
         collapsed = _collapse_spaces(text.strip())
         if _looks_like_cover_title_annotation(collapsed):
-            page = element.get("page")
             if page is not None:
                 pages.add(page)
+    # 사진 각도/글레어 등으로 Upstage가 표지 제목 영역 자체를 표(table)로
+    # 잘못 인식해 제목 글자가 무관한 표 셀들로 조각나 흩어지는 경우가 실제
+    # 촬영 사진에서 확인됐다 — 이때는 제목 텍스트로는 표지를 찾을 수 없다.
+    # "철근경" 헤더를 가진 자재 내역 표가 있다는 것 자체가 이 문서가 철근
+    # 납품 확인서라는 훨씬 더 구체적이고 오탐 가능성이 낮은 증거이므로,
+    # 제목 인식에 실패한 페이지도 이 표가 있으면 표지로 인정한다.
+    for page in all_pages - pages:
+        if _find_material_table_html(raw_response, page):
+            pages.add(page)
     return sorted(pages)
 
 
@@ -234,17 +249,36 @@ def _extract_material_rows_with_skips(raw_response: dict, page: int) -> tuple[li
     note_idx = next((i for i, cell in enumerate(header) if "비고" in _collapse_spaces(cell)), None)
     coupler_idx = next((i for i, cell in enumerate(header) if "커플러" in _collapse_spaces(cell)), None)
 
+    # rowspan으로 세로 병합된 맨 앞 칸(예: 빈 안내 칸)은 헤더 행에만 <td>가
+    # 남고 그 아래 데이터 행들에는 나타나지 않는다(정상적인 HTML rowspan
+    # 동작). _parse_table_rows는 rowspan을 인식하지 못해 셀 목록을 그대로
+    # 만들기 때문에, 데이터 행이 헤더보다 칸이 하나 적어 좌측 기준 인덱스가
+    # 통째로 밀려 엉뚱한 칸(예: 가공중량 칸)을 철근경으로 읽는 문제가 실제
+    # 촬영 사진에서 확인됐다. 표 끝에서부터의 위치(오프셋)는 이런 경우에도
+    # 안정적이므로, 각 열의 위치를 "끝에서부터 몇 번째"로 저장해 두고 매
+    # 데이터 행마다 그 행의 실제 길이를 기준으로 다시 계산한다.
+    header_len = len(header)
+    spec_offset = header_len - 1 - spec_idx
+    weight_offset = header_len - 1 - weight_idx
+    note_offset = header_len - 1 - note_idx if note_idx is not None else None
+    coupler_offset = header_len - 1 - coupler_idx if coupler_idx is not None else None
+
     result = []
     skipped = 0
     for row in rows[header_idx + 1 :]:
-        if not row or spec_idx >= len(row):
+        if not row:
             continue
-        spec = row[spec_idx].strip()
+        row_len = len(row)
+        spec_pos = row_len - 1 - spec_offset
+        if not 0 <= spec_pos < row_len:
+            continue
+        spec = row[spec_pos].strip()
         if not spec or _collapse_spaces(spec) in TOTAL_ROW_LABELS:
             continue
-        if weight_idx >= len(row):
+        weight_pos = row_len - 1 - weight_offset
+        if not 0 <= weight_pos < row_len:
             continue
-        weight_text = _normalize_weight_text(row[weight_idx].strip())
+        weight_text = _normalize_weight_text(row[weight_pos].strip())
         if not weight_text:
             continue
         try:
@@ -254,11 +288,13 @@ def _extract_material_rows_with_skips(raw_response: dict, page: int) -> tuple[li
         if weight_ton > _MAX_PLAUSIBLE_WEIGHT_TON:
             skipped += 1
             continue
-        note = row[note_idx].strip() if note_idx is not None and note_idx < len(row) else ""
+        note_pos = row_len - 1 - note_offset if note_offset is not None else None
+        note = row[note_pos].strip() if note_pos is not None and 0 <= note_pos < row_len else ""
+        coupler_pos = row_len - 1 - coupler_offset if coupler_offset is not None else None
         coupler_count = 0.0
-        if coupler_idx is not None and coupler_idx < len(row):
+        if coupler_pos is not None and 0 <= coupler_pos < row_len:
             try:
-                coupler_count = float(row[coupler_idx].strip())
+                coupler_count = float(row[coupler_pos].strip())
             except ValueError:
                 coupler_count = 0.0
         result.append({"spec": spec, "weight_ton": weight_ton, "note": note, "coupler_count": coupler_count})

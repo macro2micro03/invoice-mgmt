@@ -765,3 +765,106 @@ def test_find_cover_pages_accepts_long_legitimate_title_annotation():
         ]
     }
     assert report_parser.find_cover_pages(raw) == [1]
+
+
+# --- Round 4: real field-photo samples (2026-08-12) surfaced three new gaps ---
+
+
+def test_find_delivery_date_extracts_value_wrapped_after_colon_on_label_line():
+    # 실제 촬영 사진에서 "납품일:" 뒤에 콜론까지 같은 줄에 있지만, 폭이 좁아
+    # 값(2026-07-30)이 다음 줄로 줄바꿈되는 레이아웃이 확인됐다. 콜론이
+    # 있다는 이유만으로 "의도적으로 빈 값"이라 단정하면 이 값을 놓친다.
+    raw = {
+        "elements": [
+            {
+                "page": 1,
+                "category": "paragraph",
+                "content": {"html": "<p>납품일:<br>2026-07-30</p>", "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_delivery_date(raw, page=1) == "2026-07-30"
+
+
+def test_find_vendor_heading_still_treats_colon_with_truly_blank_value_as_empty():
+    # 위 수정이 Important #4가 막던 원래 문제(콜론 뒤가 진짜로 비어 있고
+    # 다음 줄이 무관한 면책 문구인 경우)를 되살리면 안 된다.
+    raw = {
+        "elements": [
+            {
+                "page": 1,
+                "category": "paragraph",
+                "content": {
+                    "html": "<p>공장명:<br>상차된 제품에 누락이 없음을 확인함</p>",
+                    "text": "",
+                },
+            },
+        ]
+    }
+    assert report_parser.find_vendor_heading(raw, page=1) == ""
+
+
+def test_extract_material_rows_handles_rowspan_collapsed_leading_column():
+    # 실제 촬영 사진에서 자재 내역 표의 헤더 행 맨 앞에 세로 병합(rowspan)된
+    # 빈 안내 칸이 있었다. HTML rowspan 규칙상 그 칸은 데이터 행에는 다시
+    # 나타나지 않으므로, 데이터 행이 헤더보다 칸이 하나 적어진다.
+    # _parse_table_rows는 rowspan을 모르기 때문에, 좌측 기준 인덱스를 그대로
+    # 쓰면 철근경 칸에 가공중량 값이, 로스감안중량 칸에 커플러 값(0)이
+    # 잘못 들어간다.
+    table_html = (
+        "<table><thead></thead><tbody>"
+        "<tr><td rowspan=\"6\"></td><td>철근경</td><td>가 공 중 량,Ton</td>"
+        "<td>할증(%)</td><td>로스감안중량,Ton</td><td>커플러</td><td>비고</td></tr>"
+        "<tr><td>SHD10</td><td>0.528</td><td>3</td><td>0.544</td><td>0</td><td>동국제강,현대제철</td></tr>"
+        "<tr><td>SHD13</td><td>1.486</td><td>3</td><td>1.531</td><td>0</td><td>동국제강,현대제철</td></tr>"
+        "<tr><td>계</td><td>2.014</td><td></td><td>2.075</td><td></td><td></td></tr>"
+        "</tbody></table>"
+    )
+    raw = {"elements": [{"page": 1, "category": "table", "content": {"html": table_html, "text": ""}}]}
+
+    rows = report_parser.extract_material_rows(raw, page=1)
+
+    assert rows == [
+        {"spec": "SHD10", "weight_ton": 0.544, "note": "동국제강,현대제철", "coupler_count": 0.0},
+        {"spec": "SHD13", "weight_ton": 1.531, "note": "동국제강,현대제철", "coupler_count": 0.0},
+    ]
+
+
+def test_find_cover_pages_falls_back_to_material_table_when_title_misclassified_as_table():
+    # 실제 촬영 사진에서 사진 각도/글레어로 Upstage가 제목 영역 자체를
+    # heading/paragraph가 아니라 표(table)로 잘못 인식해, "철근납품확인서"
+    # 글자가 무관한 표 셀들로 조각나 흩어진 사례가 확인됐다. 이 경우 제목
+    # 텍스트로는 표지 페이지를 찾을 수 없다. 하지만 "철근경" 헤더를 가진
+    # 자재 내역 표가 있다는 것 자체가 이 페이지가 철근 납품 확인서라는
+    # 훨씬 구체적인 증거이므로, 이를 표지 판정의 대체 근거로 인정해야 한다.
+    misrecognized_title_html = (
+        "<table><tbody><tr><td>"
+        "<table><tbody><tr><td>공 사 명:</td><td>철 근 삼성물산-서소문빌딩재개발</td></tr></tbody></table>"
+        "</td><td>납 품 확 인 서</td></tr></tbody></table>"
+    )
+    raw = {
+        "elements": [
+            {"page": 1, "category": "table", "content": {"html": misrecognized_title_html, "text": ""}},
+            {
+                "page": 1,
+                "category": "table",
+                "content": {"html": _material_table_html([("SHD10", 0.544)]), "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_cover_pages(raw) == [1]
+
+
+def test_find_cover_pages_does_not_treat_unrelated_table_only_page_as_cover():
+    # 위 대체 근거가 너무 느슨해서, 철근경 표가 전혀 없는 무관한 표 페이지를
+    # 표지로 오인하면 안 된다.
+    raw = {
+        "elements": [
+            {
+                "page": 2,
+                "category": "table",
+                "content": {"html": _table_html(["항목", "수량"], [["볼트", "10"]]), "text": ""},
+            },
+        ]
+    }
+    assert report_parser.find_cover_pages(raw) == []
