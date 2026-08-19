@@ -183,6 +183,19 @@ def test_fill_material_inspection_form_no_photos_means_no_images():
     assert len(sheet._images) == 0
 
 
+def test_fill_material_inspection_form_always_breaks_page_before_photo_ledger_title():
+    # 80행("사 진 대 지" 제목) 앞에 명시적 페이지 나눔이 없으면, 인쇄 시
+    # 어디서 페이지가 넘어갈지는 PC에 설치된 기본 프린터의 여백을 기준으로
+    # Excel이 자동 계산한다 — PC마다 계산이 달라져 실제로 이 제목이 이전
+    # 페이지 하단에 눌려 붙는 문제가 발생했다. 사진 세트가 없어도(사진대지가
+    # 여전히 출력되므로) 항상 이 경계에 수동 페이지 나눔이 있어야 한다.
+    xlsx_bytes, _ = _fill()
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert sheet["A80"].value == "사 진 대 지"
+    assert any(brk.id == 79 for brk in sheet.row_breaks.brk)
+
+
 def test_fill_material_inspection_form_single_set_matches_original_positions():
     xlsx_bytes, _ = _fill(photo_sets=[{"top": [_photo_bytes()], "bottom": [_photo_bytes()]}])
     wb = load_workbook(BytesIO(xlsx_bytes))

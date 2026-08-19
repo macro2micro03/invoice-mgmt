@@ -130,6 +130,14 @@ def fill_material_inspection_form(
     for row in CHECKLIST_RESULT_ROWS:
         sheet[f"G{row}"] = None
 
+    # PHOTO_SET_ROW_START 바로 앞(사진대지 제목 행)에 명시적 페이지 나눔이
+    # 없으면, 인쇄 시 어디서 페이지가 넘어갈지는 Excel이 그 PC에 설치된
+    # 기본 프린터의 여백을 기준으로 자동 계산한다 — PC마다 계산이 달라져
+    # "사진대지" 제목이 이전 페이지 하단에 눌려 붙는 문제가 실제로 발생했다.
+    # 명시적으로 끊어 두면 어떤 PC에서 열어도 항상 이 제목부터 새 페이지가
+    # 시작된다.
+    sheet.row_breaks.append(Break(id=PHOTO_SET_ROW_START - 2))
+
     photo_sets = photo_sets or []
     non_empty_sets = [s for s in photo_sets if s.get("top") or s.get("bottom")][:MAX_PHOTO_SETS]
 
