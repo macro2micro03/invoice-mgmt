@@ -1,0 +1,10 @@
+[server]
+# 회사 사내망 프록시가 쿠키를 가로막거나 손상시키면, Streamlit의 파일
+# 업로드가 내부적으로 사용하는 XSRF(CSRF) 쿠키 검증이 실패해
+# "AxiosError: Request failed with status code 403"가 발생한다(실제로
+# 관측됨). 이 앱은 자체 비밀번호(X-App-Password) 인증을 별도로 쓰고
+# 있어서 XSRF 보호를 꺼도 보안상 문제가 없다. CORS도 함께 꺼야 한다 —
+# Streamlit은 enableCORS=true와 enableXsrfProtection=false 조합을
+# 안전하지 않다고 보고 막는다.
+enableXsrfProtection = false
+enableCORS = false
