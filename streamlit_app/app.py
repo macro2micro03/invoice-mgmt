@@ -1,11 +1,13 @@
 import streamlit as st
 
 import api_client
+import auth
 
 st.set_page_config(page_title="철근 입고 관리 App.", page_icon="\U0001f529", layout="wide")
 
 
 def login_gate() -> bool:
+    auth.restore_session()
     if st.session_state.get("app_password"):
         return True
 
@@ -18,7 +20,7 @@ def login_gate() -> bool:
         if not password:
             st.error("비밀번호를 입력해주세요")
         elif api_client.check_password(password):
-            st.session_state["app_password"] = password
+            auth.login(password)
             st.rerun()
         else:
             st.error("비밀번호가 올바르지 않습니다")
@@ -41,5 +43,5 @@ st.markdown(
 
 with st.sidebar:
     if st.button("로그아웃"):
-        st.session_state.pop("app_password", None)
+        auth.logout()
         st.rerun()

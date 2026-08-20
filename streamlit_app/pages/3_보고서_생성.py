@@ -29,7 +29,7 @@ elif mode == "송장 사진 직접 업로드":
     files = [(f.name, f.getvalue()) for f in uploads] if uploads else []
 
 with st.form("report_form"):
-    project_name = st.text_input("공사명")
+    project_name = st.text_input("공사명", value="서소문 재개발")
     work_type = st.selectbox("공종", ["건축", "토목", "설비", "전기"])
     material_type = st.text_input("자재종류", value="철근")
     sender = st.text_input("시공담당자")
