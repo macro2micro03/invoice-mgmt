@@ -56,7 +56,7 @@ if results:
     st.session_state["selected_invoice_ids"] = selected_ids
     st.caption(f"{len(selected_ids)}건 선택됨 — 보고서/수불부 생성 화면에서 이어서 사용할 수 있습니다.")
 
-    col_a, col_b = st.columns(2)
+    col_a, col_b, col_c = st.columns(3)
     with col_a:
         if st.button("선택 항목 삭제", disabled=not selected_ids):
             try:
@@ -67,6 +67,8 @@ if results:
             except api_client.ApiError as error:
                 st.error(f"삭제에 실패했습니다: {error}")
     with col_b:
+        st.page_link("pages/3_보고서_생성.py", label="선택 항목으로 보고서 생성 →")
+    with col_c:
         st.page_link("pages/4_수불부_생성.py", label="선택 항목으로 수불부 생성 →")
 else:
     st.info("검색 결과가 없습니다.")
