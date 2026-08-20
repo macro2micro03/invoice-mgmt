@@ -12,7 +12,7 @@ st.title("송장 검색")
 with st.form("search_form"):
     cols = st.columns(4)
     vendor = cols[0].text_input("거래처")
-    material_type = cols[1].text_input("자재종류")
+    material_type = cols[1].text_input("자재종류", value="철근")
     invoice_no = cols[2].text_input("송장번호")
     delivery_date = cols[3].date_input("납품일", value=None)
     submitted = st.form_submit_button("검색")
