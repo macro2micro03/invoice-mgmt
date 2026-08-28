@@ -7,15 +7,30 @@ import { downloadBlob } from '../downloadBlob.js'
 
 const MAX_PHOTO_SETS = 5
 
+// 발신자/수신자/시공담당자/담당감리자는 매번 다시 입력하기 번거로우니
+// 최종 입력값을 다음 생성 시 기본값으로 쓸 수 있게 기억해 둔다.
+const NAME_FIELDS_STORAGE_KEY = 'reportNameFieldDefaults'
+
+function loadNameFieldDefaults() {
+  try {
+    return JSON.parse(localStorage.getItem(NAME_FIELDS_STORAGE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
 export default function ReportPage() {
   const location = useLocation()
   const invoiceIds = location.state?.invoiceIds ?? []
+  const nameDefaults = loadNameFieldDefaults()
   const [mode, setMode] = useState(invoiceIds.length > 0 ? 'selected' : 'file')
   const [projectName, setProjectName] = useState('서소문 재개발')
   const [workType, setWorkType] = useState('건축')
   const [materialType, setMaterialType] = useState('철근')
-  const [sender, setSender] = useState('')
-  const [receiver, setReceiver] = useState('')
+  const [sender, setSender] = useState(nameDefaults.sender || '')
+  const [receiver, setReceiver] = useState(nameDefaults.receiver || '')
+  const [checklistSender, setChecklistSender] = useState(nameDefaults.checklistSender || '')
+  const [checklistSupervisor, setChecklistSupervisor] = useState(nameDefaults.checklistSupervisor || '')
   const [files, setFiles] = useState([])
   const [photoSets, setPhotoSets] = useState([{ top: [], bottom: [] }])
   const [error, setError] = useState('')
@@ -51,11 +66,17 @@ export default function ReportPage() {
           material_type: materialType,
           sender,
           receiver,
+          checklist_sender: checklistSender,
+          checklist_supervisor: checklistSupervisor,
         },
         mode === 'file' ? files : [],
         photoSets,
         '',
         mode === 'selected' ? invoiceIds : [],
+      )
+      localStorage.setItem(
+        NAME_FIELDS_STORAGE_KEY,
+        JSON.stringify({ sender, receiver, checklistSender, checklistSupervisor }),
       )
       const resolvedFilename = filename || `자재검수요청서-${materialType || '자재'}.xlsx`
       // 다운로드는 더 이상 자동으로 트리거하지 않는다 — 모바일에서는
@@ -126,6 +147,24 @@ export default function ReportPage() {
         <div className="field">
           <label>수신자(총괄관리원)</label>
           <input className="input" value={receiver} onChange={(e) => setReceiver(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>시공담당자 (품질검사 체크리스트)</label>
+          <input
+            className="input"
+            value={checklistSender}
+            onChange={(e) => setChecklistSender(e.target.value)}
+            required
+          />
+        </div>
+        <div className="field">
+          <label>담당감리자 (품질검사 체크리스트)</label>
+          <input
+            className="input"
+            value={checklistSupervisor}
+            onChange={(e) => setChecklistSupervisor(e.target.value)}
+            required
+          />
         </div>
         {mode === 'file' && (
           <PhotoPicker

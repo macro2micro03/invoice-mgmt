@@ -83,6 +83,8 @@ def fill_material_inspection_form(
     document_number: str,
     sender: str,
     receiver: str,
+    checklist_sender: str,
+    checklist_supervisor: str,
     specs: list[dict],
     vendor: str,
     delivery_date: str,
@@ -119,6 +121,12 @@ def fill_material_inspection_form(
     sheet["H27"] = today
     sheet["C28"] = f" {sender}    (인)"
     sheet["H28"] = f" {receiver}    (인)"
+
+    # 품질검사 체크리스트의 시공담당자/담당감리자 서명란 — 템플릿에는
+    # 예시 이름("안진우"/"박영철")이 고정으로 박혀 있어서 실제로는 누가
+    # 검사했는지와 무관하게 항상 같은 이름이 출력되고 있었다.
+    sheet["C58"] = f" {checklist_sender}        (인)"
+    sheet["H58"] = f" {checklist_supervisor}         (인)"
 
     sheet["H35"] = delivery_date
     sheet["H36"] = today_korean

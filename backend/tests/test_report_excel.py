@@ -34,6 +34,8 @@ def _fill(**overrides):
         document_number="건축(자검)-철근-1호",
         sender="김현장",
         receiver="박감리",
+        checklist_sender="이시공",
+        checklist_supervisor="최감리",
         specs=_make_specs(),
         vendor="동경강업(주)/동국제강",
         delivery_date="2026-03-31",
@@ -51,6 +53,19 @@ def test_fill_material_inspection_form_sets_header_fields():
     assert sheet["C28"].value == " 김현장    (인)"
     assert sheet["H28"].value == " 박감리    (인)"
     assert skipped == []
+
+
+def test_fill_material_inspection_form_sets_checklist_signature_names():
+    # 체크리스트의 시공담당자/담당감리자 서명란 — 예전에는 템플릿에 박힌
+    # 예시 이름("안진우"/"박영철")이 실제 검사자와 무관하게 항상 그대로
+    # 출력됐다.
+    xlsx_bytes, _ = _fill(checklist_sender="이시공", checklist_supervisor="최감리")
+    wb = load_workbook(BytesIO(xlsx_bytes))
+    sheet = wb.active
+    assert "이시공" in sheet["C58"].value
+    assert "최감리" in sheet["H58"].value
+    assert "안진우" not in sheet["C58"].value
+    assert "박영철" not in sheet["H58"].value
 
 
 def test_fill_material_inspection_form_marks_selected_work_type_checkbox():

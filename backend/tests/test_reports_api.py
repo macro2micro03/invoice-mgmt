@@ -66,6 +66,8 @@ def _form_fields():
         "material_type": "철근",
         "sender": "김현장",
         "receiver": "박감리",
+        "checklist_sender": "이시공",
+        "checklist_supervisor": "최감리",
     }
 
 
