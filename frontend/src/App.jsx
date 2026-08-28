@@ -22,7 +22,7 @@ export default function App() {
             보고서 생성
           </NavLink>
           <NavLink to="/ledger" className={({ isActive }) => (isActive ? 'active' : undefined)}>
-            수불부 생성
+            수불부 관리
           </NavLink>
         </nav>
         <Routes>
