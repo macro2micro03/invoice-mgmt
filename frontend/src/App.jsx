@@ -13,7 +13,7 @@ export default function App() {
       <div>
         <nav className="nav">
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : undefined)}>
-            촬영
+            등록
           </NavLink>
           <NavLink to="/search" className={({ isActive }) => (isActive ? 'active' : undefined)}>
             검색

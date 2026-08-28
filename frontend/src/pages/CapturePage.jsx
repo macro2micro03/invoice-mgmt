@@ -36,7 +36,7 @@ export default function CapturePage() {
 
   return (
     <div className="page">
-      <h1>송장 촬영</h1>
+      <h1>송장 등록</h1>
       <div className="card">
         <div className="field">
           <label>송장 사진 또는 PDF</label>
