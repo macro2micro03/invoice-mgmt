@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { sendEmailWithAttachment } from '../api.js'
 
-// 발신 Gmail 주소/받는 사람은 다음에 또 입력하기 번거로우니 브라우저에
-// 기억해 둔다. 앱 비밀번호는 민감한 값이라 저장하지 않고 매번 새로 입력받는다.
+// 받는 사람은 다음에 또 입력하기 번거로우니 브라우저에 기억해 둔다.
 const STORAGE_KEY = 'emailSendDefaults'
 
 function loadDefaults() {
@@ -16,8 +15,6 @@ function loadDefaults() {
 export default function EmailSendCard({ blob, filename, defaultSubject }) {
   const defaults = loadDefaults()
   const [to, setTo] = useState(defaults.to || '')
-  const [smtpEmail, setSmtpEmail] = useState(defaults.smtpEmail || '')
-  const [smtpAppPassword, setSmtpAppPassword] = useState('')
   const [subject, setSubject] = useState(defaultSubject)
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
@@ -32,8 +29,8 @@ export default function EmailSendCard({ blob, filename, defaultSubject }) {
     setSent(false)
     setSending(true)
     try {
-      await sendEmailWithAttachment({ blob, filename, to, smtpEmail, smtpAppPassword, subject, body })
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ to, smtpEmail }))
+      await sendEmailWithAttachment({ blob, filename, to, subject, body })
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ to }))
       setSent(true)
     } catch (err) {
       setError(err.message || '이메일 발송에 실패했습니다')
@@ -48,27 +45,6 @@ export default function EmailSendCard({ blob, filename, defaultSubject }) {
       <div className="field">
         <label>받는 사람 (여러 명은 쉼표로 구분)</label>
         <input className="input" value={to} onChange={(e) => setTo(e.target.value)} required />
-      </div>
-      <div className="field">
-        <label>보내는 Gmail 주소</label>
-        <input
-          className="input"
-          type="email"
-          value={smtpEmail}
-          onChange={(e) => setSmtpEmail(e.target.value)}
-          required
-        />
-      </div>
-      <div className="field">
-        <label>Gmail 앱 비밀번호</label>
-        <input
-          className="input"
-          type="password"
-          value={smtpAppPassword}
-          onChange={(e) => setSmtpAppPassword(e.target.value)}
-          placeholder="계정 비밀번호가 아닌, Google 계정에서 발급받은 앱 비밀번호"
-          required
-        />
       </div>
       <div className="field">
         <label>제목</label>

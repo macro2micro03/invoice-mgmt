@@ -204,11 +204,9 @@ export async function deleteLedgerEntry(invoiceId) {
   if (!response.ok) throw new Error('수불부 항목 삭제 실패')
 }
 
-export async function sendEmailWithAttachment({ blob, filename, to, smtpEmail, smtpAppPassword, subject, body }) {
+export async function sendEmailWithAttachment({ blob, filename, to, subject, body }) {
   const formData = new FormData()
   formData.append('to', to)
-  formData.append('smtp_email', smtpEmail)
-  formData.append('smtp_app_password', smtpAppPassword)
   formData.append('subject', subject)
   formData.append('body', body || '')
   formData.append('file', blob, filename)

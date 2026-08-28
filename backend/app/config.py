@@ -9,6 +9,8 @@ EXCEL_PATH = STORAGE_DIR / "Master.xlsx"
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{(STORAGE_DIR / 'invoices.db').as_posix()}")
 UPSTAGE_API_KEY = os.environ.get("UPSTAGE_API_KEY", "")
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
 UPSTAGE_OCR_URL = "https://api.upstage.ai/v1/document-ai/document-parse"
 # document-parse는 송장처럼 페이지 레이아웃(표/제목 등)이 있는 문서용이라,
 # 나무 책상 위에 놓인 금속 택 하나만 근접 촬영한 사진처럼 "문서 구조"가
