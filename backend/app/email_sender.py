@@ -14,6 +14,7 @@ import requests
 from . import config
 
 RESEND_API_URL = "https://api.resend.com/emails"
+DEFAULT_BODY = "첨부된 서류를 확인해주세요."
 
 
 class EmailSendError(Exception):
@@ -38,7 +39,10 @@ def send_email_with_attachment(
             "from": config.RESEND_FROM_EMAIL,
             "to": to_addresses,
             "subject": subject,
-            "text": body or "",
+            # Resend는 html/text 둘 다 없으면(빈 문자열도 "없음"으로 취급)
+            # 요청 자체를 거부한다 — 본문을 비워 두고 보내면 "Missing 'html'
+            # or 'text' field" 오류가 났다. 항상 비어있지 않은 기본 문구를 넣는다.
+            "text": body.strip() if body and body.strip() else DEFAULT_BODY,
             "attachments": [
                 {
                     "filename": attachment_filename,

@@ -42,6 +42,27 @@ def test_send_email_with_attachment_posts_to_resend_api(monkeypatch):
     assert base64.b64decode(payload["attachments"][0]["content"]) == b"fake-xlsx-bytes"
 
 
+def test_send_email_with_attachment_uses_default_body_when_blank(monkeypatch):
+    # Resend는 text/html 둘 다 없으면(빈 문자열도 "없음"으로 취급) 요청을
+    # 거부한다 — 본문을 비워 두고 보내면 실패했던 실제 버그.
+    monkeypatch.setattr(config, "RESEND_API_KEY", "re_test_key")
+
+    with patch("app.email_sender.requests.post") as mock_post:
+        mock_post.return_value = _mock_response(ok=True)
+
+        email_sender.send_email_with_attachment(
+            to_addresses=["receiver@example.com"],
+            subject="제목",
+            body="",
+            attachment_filename="report.xlsx",
+            attachment_bytes=b"bytes",
+        )
+
+    payload = mock_post.call_args.kwargs["json"]
+    assert payload["text"] == email_sender.DEFAULT_BODY
+    assert payload["text"] != ""
+
+
 def test_send_email_with_attachment_raises_when_api_key_missing(monkeypatch):
     monkeypatch.setattr(config, "RESEND_API_KEY", "")
 
