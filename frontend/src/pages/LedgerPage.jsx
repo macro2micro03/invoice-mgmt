@@ -7,6 +7,7 @@ import {
   updateLedgerEntry,
 } from '../api.js'
 import EmailSendCard from '../components/EmailSendCard.jsx'
+import { downloadBlob } from '../downloadBlob.js'
 
 const MANUAL_FIELDS = [
   ['defect_qty', '불합격량'],
@@ -55,17 +56,10 @@ export default function LedgerPage() {
     try {
       const { blob, warnings, filename } = await createMaterialLedger(invoiceIds, inspector, supervisor)
       const resolvedFilename = filename || '주요자재검사및수불부.xlsx'
-      // 모바일 브라우저 일부는 download 트리거가 페이지 이동처럼 동작하거나
-      // 비동기로 blob을 가져가는 경우가 있어, 그 직후 상태를 지우거나 URL을
-      // 곧바로 해제하면 이메일 발송 카드가 안 뜨거나 다운로드가 깨질 수
-      // 있다. 클릭 전에 상태를 먼저 반영하고, URL 해제도 지연시킨다.
+      // 다운로드는 더 이상 자동으로 트리거하지 않는다 — 모바일에서는
+      // 이메일로 바로 보내는 게 목적인 경우가 많아, 매번 기기에 파일부터
+      // 내려받게 강제하지 않고 원할 때만 "다운로드" 버튼으로 받게 한다.
       setGeneratedFile({ blob, filename: resolvedFilename })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = resolvedFilename
-      link.click()
-      setTimeout(() => URL.revokeObjectURL(url), 2000)
       if (warnings) {
         setWarning(warnings)
       }
@@ -138,13 +132,24 @@ export default function LedgerPage() {
           disabled={generating || invoiceIds.length === 0}
           style={{ width: '100%' }}
         >
-          {generating ? '생성 중...' : '수불부 생성 (선택 항목 추가 + 다운로드)'}
+          {generating ? '생성 중...' : '수불부 생성 (선택 항목 추가)'}
         </button>
       </form>
       {error && <p className="banner banner-error">{error}</p>}
       {warning && <p className="banner banner-warning">{warning}</p>}
       {generatedFile && (
-        <EmailSendCard blob={generatedFile.blob} filename={generatedFile.filename} defaultSubject="주요자재 검사 및 수불부" />
+        <>
+          <p className="banner banner-success">생성 완료: {generatedFile.filename}</p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ width: '100%' }}
+            onClick={() => downloadBlob(generatedFile.blob, generatedFile.filename)}
+          >
+            기기에 다운로드
+          </button>
+          <EmailSendCard blob={generatedFile.blob} filename={generatedFile.filename} defaultSubject="주요자재 검사 및 수불부" />
+        </>
       )}
 
       <h2 style={{ fontSize: 16, margin: '24px 0 8px' }}>현재 수불부 포함 목록 ({entries.length}건)</h2>

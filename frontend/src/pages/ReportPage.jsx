@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import PhotoPicker from '../components/PhotoPicker.jsx'
 import EmailSendCard from '../components/EmailSendCard.jsx'
 import { createMaterialInspectionReport } from '../api.js'
+import { downloadBlob } from '../downloadBlob.js'
 
 const MAX_PHOTO_SETS = 5
 
@@ -57,17 +58,10 @@ export default function ReportPage() {
         mode === 'selected' ? invoiceIds : [],
       )
       const resolvedFilename = filename || `자재검수요청서-${materialType || '자재'}.xlsx`
-      // 모바일 브라우저 일부는 download 트리거가 페이지 이동처럼 동작하거나
-      // 비동기로 blob을 가져가는 경우가 있어, 그 직후 상태를 지우거나 URL을
-      // 곧바로 해제하면 이메일 발송 카드가 안 뜨거나 다운로드가 깨질 수
-      // 있다. 클릭 전에 상태를 먼저 반영하고, URL 해제도 지연시킨다.
+      // 다운로드는 더 이상 자동으로 트리거하지 않는다 — 모바일에서는
+      // 이메일로 바로 보내는 게 목적인 경우가 많아, 매번 기기에 파일부터
+      // 내려받게 강제하지 않고 원할 때만 "다운로드" 버튼으로 받게 한다.
       setGeneratedFile({ blob, filename: resolvedFilename })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = resolvedFilename
-      link.click()
-      setTimeout(() => URL.revokeObjectURL(url), 2000)
       if (warnings) {
         setWarning(warnings)
       }
@@ -185,11 +179,22 @@ export default function ReportPage() {
       {error && <p className="banner banner-error">{error}</p>}
       {warning && <p className="banner banner-warning">{warning}</p>}
       {generatedFile && (
-        <EmailSendCard
-          blob={generatedFile.blob}
-          filename={generatedFile.filename}
-          defaultSubject={`자재검수요청서 - ${projectName}`}
-        />
+        <>
+          <p className="banner banner-success">생성 완료: {generatedFile.filename}</p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ width: '100%' }}
+            onClick={() => downloadBlob(generatedFile.blob, generatedFile.filename)}
+          >
+            기기에 다운로드
+          </button>
+          <EmailSendCard
+            blob={generatedFile.blob}
+            filename={generatedFile.filename}
+            defaultSubject={`자재검수요청서 - ${projectName}`}
+          />
+        </>
       )}
     </div>
   )
