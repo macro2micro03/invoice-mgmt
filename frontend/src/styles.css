@@ -81,6 +81,11 @@ body {
   color: var(--color-primary);
 }
 
+.nav a.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
 .card {
   background: var(--color-surface);
   border-radius: var(--radius-md);

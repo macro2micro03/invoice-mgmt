@@ -1,4 +1,4 @@
-import { Link, Route, Routes } from 'react-router-dom'
+import { NavLink, Route, Routes } from 'react-router-dom'
 import CapturePage from './pages/CapturePage.jsx'
 import DetailPage from './pages/DetailPage.jsx'
 import EditPage from './pages/EditPage.jsx'
@@ -12,10 +12,18 @@ export default function App() {
     <PasswordGate>
       <div>
         <nav className="nav">
-          <Link to="/">촬영</Link>
-          <Link to="/search">검색</Link>
-          <Link to="/report">보고서 생성</Link>
-          <Link to="/ledger">수불부 생성</Link>
+          <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : undefined)}>
+            촬영
+          </NavLink>
+          <NavLink to="/search" className={({ isActive }) => (isActive ? 'active' : undefined)}>
+            검색
+          </NavLink>
+          <NavLink to="/report" className={({ isActive }) => (isActive ? 'active' : undefined)}>
+            보고서 생성
+          </NavLink>
+          <NavLink to="/ledger" className={({ isActive }) => (isActive ? 'active' : undefined)}>
+            수불부 생성
+          </NavLink>
         </nav>
         <Routes>
           <Route path="/" element={<CapturePage />} />
