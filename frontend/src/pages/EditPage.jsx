@@ -266,7 +266,7 @@ export default function EditPage() {
         </div>
       ))}
       <div className="card">
-        <p className="field-group-label">택 촬영</p>
+        <p className="field-group-label">철근 Tag 검수</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <label className="btn btn-primary photo-picker-add">
             {tagLoading ? '인식 중...' : tagInfo.tagPhotoFile ? '📷 택 다시 촬영' : '📷 촬영'}
