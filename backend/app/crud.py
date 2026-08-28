@@ -167,10 +167,16 @@ def delete_ledger_entry(db: Session, invoice_id: int) -> bool:
 
 
 def get_next_report_number(db: Session) -> int:
+    today = date.today()
     sequence = db.query(models.ReportSequence).filter(models.ReportSequence.id == 1).first()
     if sequence is None:
-        sequence = models.ReportSequence(id=1, last_number=0)
+        sequence = models.ReportSequence(id=1, last_number=0, last_date=today)
         db.add(sequence)
+    # 날짜가 바뀌면 번호를 1부터 다시 시작한다 — 예전에는 계속 누적돼서
+    # 파일명 뒤 번호가 날짜와 무관하게 끝없이 커졌다.
+    if sequence.last_date != today:
+        sequence.last_number = 0
+        sequence.last_date = today
     sequence.last_number += 1
     db.commit()
     db.refresh(sequence)

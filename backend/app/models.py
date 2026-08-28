@@ -56,3 +56,4 @@ class ReportSequence(Base):
 
     id = Column(Integer, primary_key=True)
     last_number = Column(Integer, nullable=False, default=0)
+    last_date = Column(Date, nullable=True)

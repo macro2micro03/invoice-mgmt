@@ -62,6 +62,28 @@ def test_get_next_report_number_starts_at_one_and_increments(db_session):
     assert third == 3
 
 
+def test_get_next_report_number_resets_when_date_changes(db_session, monkeypatch):
+    # 날짜가 바뀌면 번호가 1부터 다시 시작해야 한다 — 예전에는 날짜와
+    # 무관하게 계속 누적돼서 파일명 뒤 번호가 끝없이 커졌다.
+    class FrozenDate(date):
+        current = date(2026, 1, 1)
+
+        @classmethod
+        def today(cls):
+            return cls.current
+
+    monkeypatch.setattr(crud, "date", FrozenDate)
+
+    first = crud.get_next_report_number(db_session)
+    second = crud.get_next_report_number(db_session)
+    assert (first, second) == (1, 2)
+
+    FrozenDate.current = date(2026, 1, 2)
+    third = crud.get_next_report_number(db_session)
+    fourth = crud.get_next_report_number(db_session)
+    assert (third, fourth) == (1, 2)
+
+
 def test_create_invoice_computes_matched_tag_status(db_session):
     created = crud.create_invoice(
         db_session,
