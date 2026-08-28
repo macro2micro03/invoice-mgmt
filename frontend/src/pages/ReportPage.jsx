@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import PhotoPicker from '../components/PhotoPicker.jsx'
+import EmailSendCard from '../components/EmailSendCard.jsx'
 import { createMaterialInspectionReport } from '../api.js'
 
 const MAX_PHOTO_SETS = 5
@@ -19,6 +20,7 @@ export default function ReportPage() {
   const [error, setError] = useState('')
   const [warning, setWarning] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [generatedFile, setGeneratedFile] = useState(null)
 
   const canSubmit = mode === 'file' ? files.length > 0 : invoiceIds.length > 0
 
@@ -39,6 +41,7 @@ export default function ReportPage() {
     setError('')
     setWarning('')
     setGenerating(true)
+    setGeneratedFile(null)
     try {
       const { blob, warnings, filename } = await createMaterialInspectionReport(
         {
@@ -53,12 +56,14 @@ export default function ReportPage() {
         '',
         mode === 'selected' ? invoiceIds : [],
       )
+      const resolvedFilename = filename || `자재검수요청서-${materialType || '자재'}.xlsx`
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = filename || `자재검수요청서-${materialType || '자재'}.xlsx`
+      link.download = resolvedFilename
       link.click()
       URL.revokeObjectURL(url)
+      setGeneratedFile({ blob, filename: resolvedFilename })
       if (warnings) {
         setWarning(warnings)
       }
@@ -175,6 +180,13 @@ export default function ReportPage() {
       </form>
       {error && <p className="banner banner-error">{error}</p>}
       {warning && <p className="banner banner-warning">{warning}</p>}
+      {generatedFile && (
+        <EmailSendCard
+          blob={generatedFile.blob}
+          filename={generatedFile.filename}
+          defaultSubject={`자재검수요청서 - ${projectName}`}
+        />
+      )}
     </div>
   )
 }

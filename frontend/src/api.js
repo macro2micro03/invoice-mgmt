@@ -203,3 +203,24 @@ export async function deleteLedgerEntry(invoiceId) {
   handleUnauthorized(response)
   if (!response.ok) throw new Error('수불부 항목 삭제 실패')
 }
+
+export async function sendEmailWithAttachment({ blob, filename, to, smtpEmail, smtpAppPassword, subject, body }) {
+  const formData = new FormData()
+  formData.append('to', to)
+  formData.append('smtp_email', smtpEmail)
+  formData.append('smtp_app_password', smtpAppPassword)
+  formData.append('subject', subject)
+  formData.append('body', body || '')
+  formData.append('file', blob, filename)
+  const response = await fetch(`${API_BASE}/email/send`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  })
+  handleUnauthorized(response)
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(body.detail || '이메일 발송에 실패했습니다')
+  }
+  return response.json()
+}

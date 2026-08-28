@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import config, migrations
 from .database import Base, engine
-from .routers import invoices, ocr, reports
+from .routers import email, invoices, ocr, reports
 
 Base.metadata.create_all(bind=engine)
 migrations.run_migrations(engine)
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(ocr.router)
 app.include_router(invoices.router)
 app.include_router(reports.router)
+app.include_router(email.router)
 
 
 @app.get("/health")

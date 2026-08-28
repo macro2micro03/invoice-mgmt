@@ -6,6 +6,7 @@ import {
   getLedgerEntries,
   updateLedgerEntry,
 } from '../api.js'
+import EmailSendCard from '../components/EmailSendCard.jsx'
 
 const MANUAL_FIELDS = [
   ['defect_qty', '불합격량'],
@@ -27,6 +28,7 @@ export default function LedgerPage() {
   const [warning, setWarning] = useState('')
   const [entries, setEntries] = useState([])
   const [loadingEntries, setLoadingEntries] = useState(true)
+  const [generatedFile, setGeneratedFile] = useState(null)
 
   async function loadEntries() {
     setLoadingEntries(true)
@@ -49,14 +51,17 @@ export default function LedgerPage() {
     setError('')
     setWarning('')
     setGenerating(true)
+    setGeneratedFile(null)
     try {
       const { blob, warnings, filename } = await createMaterialLedger(invoiceIds, inspector, supervisor)
+      const resolvedFilename = filename || '주요자재검사및수불부.xlsx'
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = filename || '주요자재검사및수불부.xlsx'
+      link.download = resolvedFilename
       link.click()
       URL.revokeObjectURL(url)
+      setGeneratedFile({ blob, filename: resolvedFilename })
       if (warnings) {
         setWarning(warnings)
       }
@@ -134,6 +139,9 @@ export default function LedgerPage() {
       </form>
       {error && <p className="banner banner-error">{error}</p>}
       {warning && <p className="banner banner-warning">{warning}</p>}
+      {generatedFile && (
+        <EmailSendCard blob={generatedFile.blob} filename={generatedFile.filename} defaultSubject="주요자재 검사 및 수불부" />
+      )}
 
       <h2 style={{ fontSize: 16, margin: '24px 0 8px' }}>현재 수불부 포함 목록 ({entries.length}건)</h2>
       {loadingEntries ? (
