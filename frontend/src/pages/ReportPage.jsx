@@ -57,13 +57,17 @@ export default function ReportPage() {
         mode === 'selected' ? invoiceIds : [],
       )
       const resolvedFilename = filename || `자재검수요청서-${materialType || '자재'}.xlsx`
+      // 모바일 브라우저 일부는 download 트리거가 페이지 이동처럼 동작하거나
+      // 비동기로 blob을 가져가는 경우가 있어, 그 직후 상태를 지우거나 URL을
+      // 곧바로 해제하면 이메일 발송 카드가 안 뜨거나 다운로드가 깨질 수
+      // 있다. 클릭 전에 상태를 먼저 반영하고, URL 해제도 지연시킨다.
+      setGeneratedFile({ blob, filename: resolvedFilename })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
       link.download = resolvedFilename
       link.click()
-      URL.revokeObjectURL(url)
-      setGeneratedFile({ blob, filename: resolvedFilename })
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
       if (warnings) {
         setWarning(warnings)
       }
