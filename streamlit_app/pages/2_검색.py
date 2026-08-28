@@ -69,6 +69,6 @@ if results:
     with col_b:
         st.page_link("pages/3_보고서_생성.py", label="선택 항목으로 보고서 생성 →")
     with col_c:
-        st.page_link("pages/4_수불부_생성.py", label="선택 항목으로 수불부 생성 →")
+        st.page_link("pages/4_수불부_개정.py", label="선택 항목으로 수불부 생성 →")
 else:
     st.info("검색 결과가 없습니다.")

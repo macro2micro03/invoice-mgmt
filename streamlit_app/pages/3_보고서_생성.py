@@ -8,6 +8,15 @@ require_login()
 
 st.title("주요자재 검사요청서 생성")
 
+# 발신자·수신자·시공담당자·담당감리자는 매번 다시 입력하기 번거로우니
+# 마지막으로 입력한 값을 다음 생성 시 기본값으로 쓴다. Streamlit에는
+# 브라우저 localStorage 같은 기본 저장소가 없어, 같은 브라우저 세션이
+# 유지되는 동안(같은 탭에서 새로고침해도 유지) session_state로 기억한다.
+NAME_DEFAULTS_KEY = "report_name_field_defaults"
+if NAME_DEFAULTS_KEY not in st.session_state:
+    st.session_state[NAME_DEFAULTS_KEY] = {}
+name_defaults = st.session_state[NAME_DEFAULTS_KEY]
+
 selected_ids = st.session_state.get("selected_invoice_ids") or []
 if selected_ids:
     st.info(f"검색에서 선택한 {len(selected_ids)}건을 사용합니다.")
@@ -32,8 +41,14 @@ with st.form("report_form"):
     project_name = st.text_input("공사명", value="서소문 재개발")
     work_type = st.selectbox("공종", ["건축", "토목", "설비", "전기"])
     material_type = st.text_input("자재종류", value="철근")
-    sender = st.text_input("시공담당자")
-    receiver = st.text_input("담당감리자")
+    sender = st.text_input("발신자(현장대리인)", value=name_defaults.get("sender", ""))
+    receiver = st.text_input("수신자(총괄관리원)", value=name_defaults.get("receiver", ""))
+    checklist_sender = st.text_input(
+        "시공담당자 (품질검사 체크리스트)", value=name_defaults.get("checklist_sender", "")
+    )
+    checklist_supervisor = st.text_input(
+        "담당감리자 (품질검사 체크리스트)", value=name_defaults.get("checklist_supervisor", "")
+    )
 
     st.subheader("사진대지 (선택, 최대 5세트)")
     photo_sets = []
@@ -57,8 +72,8 @@ if submitted:
         st.error("반입일자를 선택해주세요.")
     elif mode == "송장 사진 직접 업로드" and not files:
         st.error("송장 사진을 업로드해주세요.")
-    elif not (project_name and sender and receiver):
-        st.error("공사명·시공담당자·담당감리자를 입력해주세요.")
+    elif not (project_name and sender and receiver and checklist_sender and checklist_supervisor):
+        st.error("공사명·발신자·수신자·시공담당자·담당감리자를 입력해주세요.")
     else:
         try:
             with st.spinner("생성 중..."):
@@ -69,12 +84,20 @@ if submitted:
                         "material_type": material_type,
                         "sender": sender,
                         "receiver": receiver,
+                        "checklist_sender": checklist_sender,
+                        "checklist_supervisor": checklist_supervisor,
                     },
                     files=files,
                     photo_sets=photo_sets,
                     delivery_date=delivery_date,
                     invoice_ids=selected_ids if mode == "선택한 검색 결과 사용" else None,
                 )
+            st.session_state[NAME_DEFAULTS_KEY] = {
+                "sender": sender,
+                "receiver": receiver,
+                "checklist_sender": checklist_sender,
+                "checklist_supervisor": checklist_supervisor,
+            }
             if warnings:
                 from urllib.parse import unquote
 

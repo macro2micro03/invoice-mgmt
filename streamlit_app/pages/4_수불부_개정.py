@@ -6,7 +6,7 @@ import streamlit as st
 import api_client
 from auth import require_login
 
-st.set_page_config(page_title="수불부 생성 — 철근 입고 관리 App.", page_icon="\U0001f4d1", layout="wide")
+st.set_page_config(page_title="수불부 개정 — 철근 입고 관리 App.", page_icon="\U0001f4d1", layout="wide")
 require_login()
 
 st.title("주요자재 검사 및 수불부")

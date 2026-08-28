@@ -5,10 +5,10 @@ import api_client
 from auth import require_login
 from spec_match import match_tag_against_items
 
-st.set_page_config(page_title="촬영 — 철근 입고 관리 App.", page_icon="\U0001f4f7", layout="wide")
+st.set_page_config(page_title="등록 — 철근 입고 관리 App.", page_icon="\U0001f4f7", layout="wide")
 require_login()
 
-st.title("송장 촬영")
+st.title("송장 등록")
 
 COMMON_FIELDS = [("vendor", "거래처"), ("delivery_date", "납품일"), ("vehicle_no", "차량번호"), ("invoice_no", "송장번호")]
 ITEM_COLUMNS = ["material_type", "item_name", "spec", "unit", "quantity", "weight", "note"]
