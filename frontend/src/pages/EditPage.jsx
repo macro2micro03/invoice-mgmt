@@ -57,8 +57,9 @@ function matchTagToSpec(tagGrade, tagDiameter, spec) {
 // 촬영한 철근 Tag 여러 장을 자재 목록과 1:1로 대조한다. 각 자재(규격)에
 // 대해 아직 배정되지 않은 택 중 규격이 일치하는 것을 하나 찾아 배정한다.
 // 같은 규격의 택이 여러 장 남더라도(패킹 단위별로 택이 따로 있는 게
-// 정상이다) 그건 문제가 아니므로 경고하지 않는다 — 이 송장의 어떤
-// 규격과도 안 맞는 택만 따로 반환한다.
+// 정상이다) 그건 문제가 아니므로 경고하지 않는다 — 저장 시 그 자재에
+// 첨부할 택을 정하는 용도로만 쓰인다. 개별 택이 이 송장 규격에
+// 포함되는지 여부는 각 택 카드에서 matchTagToSpec으로 직접 표시한다.
 function matchTagsToItems(items, tagEntries) {
   const usedFiles = new Set()
   const itemAssignments = items.map((item) => {
@@ -69,11 +70,8 @@ function matchTagsToItems(items, tagEntries) {
     usedFiles.add(found.file)
     return found
   })
-  const unknownTagEntries = tagEntries.filter(
-    (entry) => !items.some((item) => matchTagToSpec(entry.result.tag_grade, entry.result.tag_diameter, item.spec) === 'matched'),
-  )
 
-  return { itemAssignments, unknownTagEntries }
+  return { itemAssignments }
 }
 
 function makeItem(record) {
@@ -160,7 +158,7 @@ export default function EditPage() {
   const tagEntries = tagFiles
     .map((file) => ({ file, result: tagResultsByFile.get(file) }))
     .filter((entry) => entry.result && entry.result !== 'loading' && entry.result !== 'error' && entry.result.tag_grade && entry.result.tag_diameter)
-  const { itemAssignments, unknownTagEntries } = matchTagsToItems(items, tagEntries)
+  const { itemAssignments } = matchTagsToItems(items, tagEntries)
 
   async function handleSave() {
     setSaving(true)
@@ -316,17 +314,18 @@ export default function EditPage() {
                       placeholder="예: 10, 13, 16"
                     />
                   </div>
+                  {result.tag_grade &&
+                    result.tag_diameter &&
+                    (items.some((item) => matchTagToSpec(result.tag_grade, result.tag_diameter, item.spec) === 'matched') ? (
+                      <p className="banner banner-success">이 규격은 송장에 포함되어 있습니다 — 이상 없습니다.</p>
+                    ) : (
+                      <p className="banner banner-warning">이 규격은 이 송장의 규격 어디에도 없습니다.</p>
+                    ))}
                 </>
               )}
             </div>
           )
         })}
-        {unknownTagEntries.length > 0 && (
-          <p className="banner banner-warning" style={{ marginTop: 12 }}>
-            다음 철근 Tag는 이 송장의 규격 어디에도 없습니다:{' '}
-            {unknownTagEntries.map((entry) => `${entry.result.tag_grade} D${entry.result.tag_diameter}`).join(', ')}
-          </p>
-        )}
       </div>
       <button
         className="btn btn-primary"
