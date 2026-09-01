@@ -78,6 +78,21 @@ def test_create_invoice_with_tag_fields_and_photo_computes_match_status(monkeypa
     assert body["tag_site_name"] == "서소문 재개발"
 
 
+def test_create_invoice_accepts_explicit_missing_tag_match_status(monkeypatch):
+    # 철근 Tag 일괄 검수에서 이 규격에 대응하는 택을 하나도 찾지 못했을 때
+    # 프런트가 명시적으로 보내는 값 — tag_grade/tag_diameter 없이도
+    # 자동 계산(None)을 덮어써서 저장돼야 한다.
+    monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
+    monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")
+
+    response = client.post(
+        "/invoices",
+        data={"material_type": "철근", "spec": "SHD13", "tag_match_status": "missing"},
+    )
+    assert response.status_code == 200
+    assert response.json()["tag_match_status"] == "missing"
+
+
 def test_get_invoice_round_trip_returns_tag_fields(monkeypatch):
     monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
     monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")

@@ -12,11 +12,19 @@ def create_invoice(
     photo_path: Optional[str] = None,
     tag_photo_path: Optional[str] = None,
 ) -> models.Invoice:
+    payload = data.model_dump()
+    explicit_tag_match_status = payload.pop("tag_match_status", None)
+    # 명시적으로 넘어온 값(예: 철근 Tag 일괄 검수에서 이 규격에 대응하는
+    # 택을 찾지 못해 "missing"으로 표시)이 있으면 그대로 쓰고, 없으면
+    # 기존과 동일하게 tag_grade/tag_diameter/spec으로 자동 계산한다.
+    tag_match_status = explicit_tag_match_status or spec_grade.match_tag_to_spec(
+        data.tag_grade, data.tag_diameter, data.spec or ""
+    )
     invoice = models.Invoice(
-        **data.model_dump(),
+        **payload,
         photo_path=photo_path,
         tag_photo_path=tag_photo_path,
-        tag_match_status=spec_grade.match_tag_to_spec(data.tag_grade, data.tag_diameter, data.spec or ""),
+        tag_match_status=tag_match_status,
     )
     db.add(invoice)
     db.commit()

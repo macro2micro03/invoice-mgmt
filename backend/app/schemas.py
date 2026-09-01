@@ -26,7 +26,11 @@ class InvoiceBase(BaseModel):
 
 
 class InvoiceCreate(InvoiceBase):
-    pass
+    # 철근 Tag 일괄 검수(여러 장 대조)에서 이 규격에 일치하는 택을 하나도
+    # 찾지 못한 경우, 그 사실을 "missing"으로 명시적으로 저장하기 위한
+    # 값이다. 보통은 비워두면 서버가 tag_grade/tag_diameter/spec으로
+    # 자동 계산한다(기존 동작 그대로 유지).
+    tag_match_status: Optional[str] = None
 
 
 class InvoiceUpdate(InvoiceBase):

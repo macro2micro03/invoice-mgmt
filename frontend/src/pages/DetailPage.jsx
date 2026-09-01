@@ -29,6 +29,7 @@ const TAG_FIELD_DEFS = [
 function tagMatchLabel(status) {
   if (status === 'matched') return '일치'
   if (status === 'mismatched') return '불일치'
+  if (status === 'missing') return '대응 택 없음'
   return '택 미촬영'
 }
 
@@ -95,6 +96,12 @@ export default function DetailPage() {
         {invoice.tag_match_status === 'mismatched' && (
           <p className="banner banner-warning">
             택 규격({invoice.tag_grade} D{invoice.tag_diameter})이 송장 규격({invoice.spec})과 다릅니다
+          </p>
+        )}
+        {invoice.tag_match_status === 'missing' && (
+          <p className="banner banner-warning">
+            이 규격({invoice.spec})에 해당하는 철근 Tag를 찾지 못했습니다 — 촬영한 택 중 일치하는 것이
+            없습니다
           </p>
         )}
         {TAG_FIELD_DEFS.map(([key, label]) => (

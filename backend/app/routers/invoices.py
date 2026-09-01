@@ -33,6 +33,7 @@ async def create_invoice(
     tag_length: Optional[str] = Form(None),
     tag_quantity: Optional[str] = Form(None),
     tag_shape: Optional[str] = Form(None),
+    tag_match_status: Optional[str] = Form(None),
     photo: Optional[UploadFile] = File(None),
     tag_photo: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
@@ -56,6 +57,7 @@ async def create_invoice(
         tag_length=tag_length,
         tag_quantity=tag_quantity,
         tag_shape=tag_shape,
+        tag_match_status=tag_match_status,
     )
     invoice = crud.create_invoice(db, data)
 

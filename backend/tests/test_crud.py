@@ -106,6 +106,27 @@ def test_create_invoice_without_tag_info_leaves_status_none(db_session):
     assert created.tag_match_status is None
 
 
+def test_create_invoice_respects_explicit_tag_match_status_override(db_session):
+    # 철근 Tag 일괄 검수에서 이 규격에 대응하는 택을 하나도 찾지 못한
+    # 경우, 프런트가 tag_grade/tag_diameter 없이 tag_match_status="missing"만
+    # 명시적으로 보낸다 — 자동 계산(둘 다 비어 있으면 None)을 덮어써야 한다.
+    created = crud.create_invoice(
+        db_session, make_invoice_data(spec="SHD13", tag_match_status="missing")
+    )
+    assert created.tag_match_status == "missing"
+
+
+def test_create_invoice_explicit_override_does_not_leak_into_other_fields(db_session):
+    created = crud.create_invoice(
+        db_session, make_invoice_data(spec="SHD13", tag_grade="SD500", tag_diameter="13", tag_match_status="missing")
+    )
+    # tag_match_status가 InvoiceCreate 필드 목록에서 빠져나가더라도
+    # tag_grade/tag_diameter 등 나머지 필드는 정상적으로 저장돼야 한다.
+    assert created.tag_grade == "SD500"
+    assert created.tag_diameter == "13"
+    assert created.tag_match_status == "missing"
+
+
 def test_update_invoice_recomputes_tag_match_status(db_session):
     created = crud.create_invoice(db_session, make_invoice_data(spec="SHD13"))
     update_data = schemas.InvoiceUpdate(
