@@ -56,7 +56,7 @@ function matchTagToSpec(tagGrade, tagDiameter, spec) {
 
 // 촬영한 철근 Tag 여러 장을 자재 목록과 1:1로 대조한다. 각 자재(규격)에
 // 대해 아직 배정되지 않은 택 중 규격이 일치하는 것을 하나 찾아 배정하고,
-// 끝까지 배정되지 못한 택은 "송장에 없는 규격의 택"으로 따로 반환한다.
+// 끝까지 배정되지 못한 택은 따로 반환한다.
 function matchTagsToItems(items, tagEntries) {
   const usedFiles = new Set()
   const itemAssignments = items.map((item) => {
@@ -68,7 +68,18 @@ function matchTagsToItems(items, tagEntries) {
     return found
   })
   const unmatchedTagEntries = tagEntries.filter((entry) => !usedFiles.has(entry.file))
-  return { itemAssignments, unmatchedTagEntries }
+
+  // 배정되지 못한 택은 두 가지 이유가 있을 수 있다 — (1) 같은 규격을
+  // 이미 다른 택이 채워서 남은 "중복 촬영본"인 경우와, (2) 이 송장의
+  // 어떤 규격과도 안 맞는 경우. 둘 다 "일치하지 않습니다"로 뭉뚱그리면
+  // 실제로는 송장에 있는 규격인데도 없는 것처럼 오해하게 만든다
+  // (실제로 겪은 문제).
+  const duplicateTagEntries = unmatchedTagEntries.filter((entry) =>
+    items.some((item) => matchTagToSpec(entry.result.tag_grade, entry.result.tag_diameter, item.spec) === 'matched'),
+  )
+  const unknownTagEntries = unmatchedTagEntries.filter((entry) => !duplicateTagEntries.includes(entry))
+
+  return { itemAssignments, duplicateTagEntries, unknownTagEntries }
 }
 
 function makeItem(record) {
@@ -155,7 +166,7 @@ export default function EditPage() {
   const tagEntries = tagFiles
     .map((file) => ({ file, result: tagResultsByFile.get(file) }))
     .filter((entry) => entry.result && entry.result !== 'loading' && entry.result !== 'error' && entry.result.tag_grade && entry.result.tag_diameter)
-  const { itemAssignments, unmatchedTagEntries } = matchTagsToItems(items, tagEntries)
+  const { itemAssignments, duplicateTagEntries, unknownTagEntries } = matchTagsToItems(items, tagEntries)
 
   async function handleSave() {
     setSaving(true)
@@ -316,10 +327,16 @@ export default function EditPage() {
             </div>
           )
         })}
-        {unmatchedTagEntries.length > 0 && (
+        {duplicateTagEntries.length > 0 && (
           <p className="banner banner-warning" style={{ marginTop: 12 }}>
-            다음 철근 Tag는 이 송장의 규격과 일치하지 않습니다:{' '}
-            {unmatchedTagEntries.map((entry) => `${entry.result.tag_grade} D${entry.result.tag_diameter}`).join(', ')}
+            다음 철근 Tag는 같은 규격의 다른 택으로 이미 확인 처리됐습니다(중복 촬영본일 수 있습니다):{' '}
+            {duplicateTagEntries.map((entry) => `${entry.result.tag_grade} D${entry.result.tag_diameter}`).join(', ')}
+          </p>
+        )}
+        {unknownTagEntries.length > 0 && (
+          <p className="banner banner-warning" style={{ marginTop: 12 }}>
+            다음 철근 Tag는 이 송장의 규격 어디에도 없습니다:{' '}
+            {unknownTagEntries.map((entry) => `${entry.result.tag_grade} D${entry.result.tag_diameter}`).join(', ')}
           </p>
         )}
       </div>
