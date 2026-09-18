@@ -13,28 +13,44 @@
 - 편집 화면에서 저장 전 즉시 확인 배너, 상세 화면에서 저장된 판정 결과 표시.
 
 **범위 밖:**
-- 제조사 목록 검증(할루시네이션 방지용 표준 목록) — 국내 제조사가 다양하고 목록에 없는 소규모 업체도 있어 이번에는 도입하지 않는다. 검증 없이 LLM 응답을 그대로 사용한다.
 - 택-자재 배정(assignment) 로직 변경 — 배정은 기존대로 강종+직경 기준으로만 하고, 제조사는 배정된 뒤 추가 확인 배너로만 표시한다.
 - `vendor`(거래처/공장명) 필드와의 대조 — `note` 필드(갑지 파싱 시 실제 제조사명이 들어가는 칸)만 비교 대상으로 한다.
+- 풀(POOL) 자체의 운영 화면(추가/삭제 UI) — 코드에 상수로 고정하고, 제강사 구성이 바뀌면 코드 수정으로 대응한다.
+
+## 제조사 풀 (POOL)
+
+현장에 실제로 납품하는 제강사는 아래 7곳으로 한정된다(사용자 확인). 코드(2자리 약칭)와 정식명칭을 모두 인식 대상으로 삼는다 — 택에는 둘 중 하나로만 표시되는 경우가 많다.
+
+| 코드 | 정식명칭 |
+|---|---|
+| HS | 현대제철 |
+| DK | 동국제강 |
+| DH | 대한제강 |
+| HK | 한국철강 |
+| HY | 환영철강 |
+| YK | YK스틸 |
+| HJ | 한국제강 |
+
+라벨 매칭이든 LLM 비전이든, 추출된 원문(코드 또는 정식명칭, 법인 표기 포함)은 이 풀로 정규화된다. **풀의 7개 중 어디에도 매칭되지 않으면 인식 실패로 간주해 빈 값으로 처리한다** — 강종/직경의 표준 목록 검증(`VALID_GRADES`/`VALID_DIAMETERS`)과 동일한 원칙이다. 저장되는 `tag_manufacturer` 값은 항상 7개 정식명칭 중 하나이거나 빈 문자열이다.
 
 ## 비교 대상 필드
 
-송장 레코드의 `note` 필드를 기준으로 삼는다. 갑지(철근 납품 확인서) 파싱 시 표의 "비고" 칸에 실제 제조사명(예: "동국제강")이 들어가는 것이 확인됐다([report_parser.py](../../../backend/app/report_parser.py)의 `build_capture_records`). 일반 촬영 송장은 `note`가 비어있을 수 있으며, 이 경우 판정은 `None`(확인불가)이 된다.
+송장 레코드의 `note` 필드를 기준으로 삼는다. 갑지(철근 납품 확인서) 파싱 시 표의 "비고" 칸에 실제 제조사명(예: "동국제강")이 들어가는 것이 확인됐다([report_parser.py](../../../backend/app/report_parser.py)의 `build_capture_records`). 일반 촬영 송장은 `note`가 비어있을 수 있으며, 이 경우 판정은 `None`(확인불가)이 된다. `note`도 같은 풀 정규화 함수를 거쳐 비교하므로, `note`에 부가 정보(예: "동국제강(부산공장)")가 섞여 있어도 정규화 후 매칭된다.
 
 ## 인식 방식
 
 기존 강종/직경과 동일한 하이브리드 구조를 따르되, 정규식 폴백 단계는 생략한다(제조사명은 `SD500`처럼 고정된 표기 규칙이 없고, 로고·도장 형태로만 표시되는 경우가 많다):
 
-1. **라벨 매칭**: `ocr.normalize_tag_fields`가 "제조사"/"제강사" 라벨을 찾아 값 추출 (기존 로직 재사용, 라벨 목록만 추가)
-2. **LLM 비전 폴백**: 강종·직경·제조사 중 하나라도 비어있으면 Claude 비전에 택 사진을 보내 세 값을 **한 번에** 요청 (기존 강종/직경 폴백 호출에 제조사 추출을 포함시켜, 같은 사진에 대해 API를 두 번 호출하지 않는다)
+1. **라벨 매칭**: `ocr.normalize_tag_fields`가 "제조사"/"제강사" 라벨을 찾아 값을 추출한 뒤, **풀로 정규화**(풀 밖이면 빈 값)
+2. **LLM 비전 폴백**: 강종·직경·제조사 중 하나라도 비어있으면 Claude 비전에 택 사진을 보내 세 값을 **한 번에** 요청 (기존 강종/직경 폴백 호출에 제조사 추출을 포함시켜, 같은 사진에 대해 API를 두 번 호출하지 않는다). LLM 응답도 동일하게 **풀로 정규화**(풀 밖이면 빈 값)
 
-제조사는 표준 목록 검증 없이 LLM 응답을 trim만 해서 그대로 사용한다.
+두 경로 모두 같은 정규화 함수(`spec_grade.normalize_manufacturer`)를 거치므로, 라벨 매칭이든 LLM이든 최종적으로 `tag_manufacturer`에 들어가는 값은 항상 풀 안의 정식명칭이거나 빈 문자열로 일관된다. 프롬프트에도 7개 풀(코드+명칭)을 명시해 LLM이 애매한 표기를 더 정확히 인식하도록 돕는다.
 
 **참고**: 제조사는 라벨 매칭 성공률이 강종/직경보다 낮을 것으로 예상되어(로고 위주), LLM 폴백 호출 빈도가 강종/직경보다 높아질 가능성이 있다. 호출당 비용 자체가 낮아([2026-09-18-tag-llm-vision-fallback-design.md](2026-09-18-tag-llm-vision-fallback-design.md) 참고) 허용 가능한 수준으로 판단했다.
 
 ## 일치 판정 규칙
 
-`(주)`, `㈜`, `주식회사`, 공백을 제거해 정규화한 뒤, 한쪽 문자열이 다른 쪽을 포함(containment)하면 `matched`로 판정한다 (예: `note="동국제강"`, 택="㈜동국제강" → 정규화 후 "동국제강" ⊂ "동국제강" → matched). 정규화 후에도 서로 포함 관계가 아니면 `mismatched`. `tag_manufacturer` 또는 `note` 둘 중 하나라도 비어있으면 `None`(판정 불가).
+`tag_manufacturer`와 `note`를 각각 풀로 정규화한 뒤, 정규화된 정식명칭이 서로 같으면 `matched`, 다르면 `mismatched`. 둘 중 하나라도 풀에 매칭되지 않으면(빈 값 포함) `None`(판정 불가).
 
 ## 백엔드 변경
 
@@ -53,37 +69,85 @@ TAG_FIELD_LABELS = {
 }
 ```
 
-`TAG_FIELDS`는 `TAG_FIELD_LABELS.keys()`에서 자동 파생되므로 별도 변경 불필요.
+`TAG_FIELDS`와 라벨 경계 판별용 `_ALL_TAG_LABELS`/`_TAG_LABEL_LOOKAHEAD`는 모두 `TAG_FIELD_LABELS`에서 자동 파생되므로 위 딕셔너리에 항목만 추가하면 되고 별도 변경 불필요.
 
-### `backend/app/llm_tag_fallback.py`
+라벨 매칭 직후, `normalize_tag_fields`에서 `result["tag_manufacturer"]`를 `spec_grade.normalize_manufacturer`에 통과시켜 풀 밖이면 빈 문자열로 되돌린다(`ocr.py`는 이미 `from . import config, spec_grade`로 `spec_grade`를 가져오고 있어 추가 의존성 없음):
 
-- `_PROMPT`에 `manufacturer` 필드 추가 (강종/직경과 같은 JSON 응답에 포함, 모르면 `null`)
-- `extract_tag_grade_diameter(image_bytes, filename, media_type) -> tuple[str, str]`를 `extract_tag_fields(image_bytes, filename, media_type) -> tuple[str, str, str]`(grade, diameter, manufacturer)로 확장
-- `call_claude_vision`은 원시 dict를 그대로 반환하므로 변경 없음(호출부에서 `"manufacturer"` 키만 추가로 읽음)
-- 제조사는 `_valid_grade`/`_valid_diameter` 같은 검증 없이, 문자열이면 `.strip()`만 적용(빈 문자열/비문자열은 `""`)
+```python
+    result["tag_manufacturer"] = spec_grade.normalize_manufacturer(result["tag_manufacturer"]) or ""
+```
 
 ### `backend/app/spec_grade.py`
 
 ```python
+MANUFACTURER_POOL = {
+    "HS": "현대제철",
+    "DK": "동국제강",
+    "DH": "대한제강",
+    "HK": "한국철강",
+    "HY": "환영철강",
+    "YK": "YK스틸",
+    "HJ": "한국제강",
+}
+
 _CORPORATE_MARKERS_PATTERN = re.compile(r"\(주\)|㈜|주식회사|\s+")
 
 
-def _normalize_manufacturer(value: str | None) -> str | None:
+def normalize_manufacturer(value: str | None) -> str | None:
+    """원문 표기(코드 또는 정식명칭, 법인 표기 포함)를 MANUFACTURER_POOL의
+    정식명칭으로 정규화한다. 풀의 7개 중 어디에도 매칭되지 않으면 None
+    (인식 실패로 간주 — 강종/직경의 표준 목록 검증과 동일한 원칙)."""
     if not value:
         return None
-    normalized = _CORPORATE_MARKERS_PATTERN.sub("", value.strip())
-    return normalized or None
+    stripped = value.strip()
+    if stripped.upper() in MANUFACTURER_POOL:
+        return MANUFACTURER_POOL[stripped.upper()]
+    cleaned = _CORPORATE_MARKERS_PATTERN.sub("", stripped)
+    if not cleaned:
+        return None
+    for canonical_name in MANUFACTURER_POOL.values():
+        if canonical_name in cleaned or cleaned in canonical_name:
+            return canonical_name
+    return None
 
 
 def match_manufacturer(tag_manufacturer: str | None, note: str | None) -> str | None:
-    norm_tag = _normalize_manufacturer(tag_manufacturer)
-    norm_note = _normalize_manufacturer(note)
+    norm_tag = normalize_manufacturer(tag_manufacturer)
+    norm_note = normalize_manufacturer(note)
     if norm_tag is None or norm_note is None:
         return None
-    if norm_tag in norm_note or norm_note in norm_tag:
-        return "matched"
-    return "mismatched"
+    return "matched" if norm_tag == norm_note else "mismatched"
 ```
+
+### `backend/app/llm_tag_fallback.py`
+
+- `_PROMPT`에 `manufacturer` 필드 추가. 7개 풀(코드+명칭)을 프롬프트에 명시해 LLM이 애매한 표기를 더 정확히 인식하도록 돕는다:
+
+```python
+_PROMPT = (
+    "이 사진은 철근 택(꼬리표) 사진입니다. 택에 표시된 철근의 강종, 직경, "
+    "제조사만 다른 설명 없이 JSON으로 답하세요: "
+    '{"grade": "SD300/SD400/SD500/SD600 중 하나, 모르면 null", '
+    '"diameter": "13처럼 숫자만, 모르면 null", '
+    '"manufacturer": "다음 7개 제강사 중 하나만 — HS(현대제철), DK(동국제강), '
+    'DH(대한제강), HK(한국철강), HY(환영철강), YK(YK스틸), HJ(한국제강). '
+    '코드나 정식명칭 아무거나로 답해도 됩니다. 이 목록에 없거나 모르면 null"}. '
+    "확신이 없으면 null로 답하세요."
+)
+```
+
+- `extract_tag_grade_diameter(image_bytes, filename, media_type) -> tuple[str, str]`를 `extract_tag_fields(image_bytes, filename, media_type) -> tuple[str, str, str]`(grade, diameter, manufacturer)로 확장
+- `call_claude_vision`은 원시 dict를 그대로 반환하므로 변경 없음(호출부에서 `"manufacturer"` 키만 추가로 읽음)
+- 제조사는 `import`를 추가해(`from . import config, spec_grade`) `spec_grade.normalize_manufacturer`로 검증한다(모듈 자체 `VALID_GRADES`/`VALID_DIAMETERS`와 별개로, 제조사 풀은 `spec_grade.py`가 단일 소스여서 `note` 비교 쪽과 동일한 정의를 공유한다):
+
+```python
+def _valid_manufacturer(value) -> str:
+    if not isinstance(value, str):
+        return ""
+    return spec_grade.normalize_manufacturer(value) or ""
+```
+
+  `extract_tag_fields`에서 `_valid_grade`/`_valid_diameter`와 같은 자리에 `_valid_manufacturer(raw.get("manufacturer"))`를 호출해 세 번째 값으로 반환한다. 목록 밖 값에 대한 경고 로그도 `tag_grade`/`tag_diameter`와 동일한 패턴으로 추가한다.
 
 ### `backend/app/routers/ocr.py`
 
@@ -113,6 +177,26 @@ def match_manufacturer(tag_manufacturer: str | None, note: str | None) -> str | 
 ```python
     tag_manufacturer = Column(String, nullable=True)
     tag_manufacturer_match_status = Column(String, nullable=True)
+```
+
+### `backend/app/migrations.py`
+
+**필수** — Render에 이미 배포된 운영 DB(SQLite, `STORAGE_DIR/invoices.db`)에는 이 두 컬럼이 없다. `models.py`만 고치면 로컬 새 DB에는 반영되지만, 기존 운영 DB는 앱 시작 시 이 마이그레이션이 돌지 않으면 컬럼이 없어 저장/조회 시 에러가 난다. `TAG_COLUMNS`에 추가:
+
+```python
+TAG_COLUMNS = {
+    "tag_photo_path": "VARCHAR",
+    "tag_site_name": "VARCHAR",
+    "tag_location": "VARCHAR",
+    "tag_diameter": "VARCHAR",
+    "tag_grade": "VARCHAR",
+    "tag_length": "VARCHAR",
+    "tag_quantity": "VARCHAR",
+    "tag_shape": "VARCHAR",
+    "tag_match_status": "VARCHAR",
+    "tag_manufacturer": "VARCHAR",
+    "tag_manufacturer_match_status": "VARCHAR",
+}
 ```
 
 ### `backend/app/schemas.py`
@@ -161,23 +245,39 @@ def create_invoice(
 
 ### `frontend/src/pages/EditPage.jsx`
 
-- `matchTagToSpec` 옆에 JS 헬퍼 추가 (백엔드 `match_manufacturer`와 동일 로직 이식):
+- `matchTagToSpec` 옆에 JS 헬퍼 추가 (백엔드 `spec_grade.py`의 `MANUFACTURER_POOL`/`normalize_manufacturer`/`match_manufacturer`와 동일 로직 이식 — 풀 목록이 두 곳에 중복되므로, 나중에 풀이 바뀌면 백엔드·프론트 양쪽 다 고쳐야 함을 주석으로 남긴다):
 
 ```js
+// backend/app/spec_grade.py의 MANUFACTURER_POOL과 동일하게 유지할 것.
+const MANUFACTURER_POOL = {
+  HS: '현대제철',
+  DK: '동국제강',
+  DH: '대한제강',
+  HK: '한국철강',
+  HY: '환영철강',
+  YK: 'YK스틸',
+  HJ: '한국제강',
+}
 const CORPORATE_MARKERS_PATTERN = /\(주\)|㈜|주식회사|\s+/g
 
 function normalizeManufacturer(value) {
   if (!value) return null
-  const normalized = value.trim().replace(CORPORATE_MARKERS_PATTERN, '')
-  return normalized || null
+  const stripped = value.trim()
+  const code = stripped.toUpperCase()
+  if (MANUFACTURER_POOL[code]) return MANUFACTURER_POOL[code]
+  const cleaned = stripped.replace(CORPORATE_MARKERS_PATTERN, '')
+  if (!cleaned) return null
+  const found = Object.values(MANUFACTURER_POOL).find(
+    (name) => cleaned.includes(name) || name.includes(cleaned),
+  )
+  return found || null
 }
 
 function matchManufacturer(tagManufacturer, note) {
   const normTag = normalizeManufacturer(tagManufacturer)
   const normNote = normalizeManufacturer(note)
   if (normTag === null || normNote === null) return null
-  if (normNote.includes(normTag) || normTag.includes(normNote)) return 'matched'
-  return 'mismatched'
+  return normTag === normNote ? 'matched' : 'mismatched'
 }
 ```
 
@@ -214,17 +314,22 @@ function matchManufacturer(tagManufacturer, note) {
 
 ## 테스트 전략
 
-- `backend/tests/test_spec_grade.py`: `match_manufacturer` — 정상 일치, 법인표기 차이 정규화(`(주)`/`㈜`/`주식회사`/공백), 불일치, `tag_manufacturer`/`note` 중 하나라도 없을 때 `None`
-- `backend/tests/test_llm_tag_fallback.py`: 응답에 `manufacturer` 포함 시 추출, `null`일 때 빈 문자열, 기존 grade/diameter 테스트는 3-튜플 반환에 맞게 갱신
-- `backend/tests/test_ocr_endpoint.py`: 라벨 매칭만으로 제조사 추출, LLM 폴백으로 제조사만 보완되는 케이스(강종/직경은 라벨로 찾았지만 제조사만 없는 경우도 폴백이 트리거되는지)
+- `backend/tests/test_spec_grade.py`:
+  - `normalize_manufacturer` — 코드로 매칭(`"HS"`, 소문자 `"hs"`), 정식명칭으로 매칭, 법인표기 포함 매칭(`"㈜동국제강"`, `"주식회사 대한제강"`), 부가정보 포함 매칭(`"동국제강(부산공장)"`), 풀 밖 값은 `None`, 빈 값은 `None`
+  - `match_manufacturer` — 정상 일치(코드 vs 정식명칭처럼 표기가 달라도 정규화 후 같으면 matched), 불일치(서로 다른 풀 항목), `tag_manufacturer`/`note` 중 하나라도 풀 밖이거나 비어있으면 `None`
+- `backend/tests/test_llm_tag_fallback.py`: 응답에 풀 안의 `manufacturer`(코드 또는 정식명칭) 포함 시 정식명칭으로 정규화되어 추출, 풀 밖 값이나 `null`일 때 빈 문자열, 기존 grade/diameter 테스트는 3-튜플 반환에 맞게 갱신
+- `backend/tests/test_ocr_endpoint.py`: 라벨 매칭만으로 제조사 추출(풀 안의 값), 라벨로 찾았지만 풀 밖이라 빈 값 처리되는 케이스, LLM 폴백으로 제조사만 보완되는 케이스(강종/직경은 라벨로 찾았지만 제조사만 없는 경우도 폴백이 트리거되는지)
 - `backend/tests/test_crud.py`: 저장/수정 시 `tag_manufacturer_match_status`가 `note`와 비교해 올바르게 계산되는지 (일치/불일치/판정불가)
-- `backend/tests/test_migrations.py` 또는 기존 스키마 마이그레이션 테스트가 있다면 새 컬럼 반영 확인
+- `backend/tests/test_migrations.py`: `tag_manufacturer`/`tag_manufacturer_match_status` 컬럼이 없는 기존 DB에 `run_migrations` 실행 시 컬럼이 추가되는지
 - 프론트엔드는 기존 패턴대로 자동 테스트 없이 `npm run build` + 브라우저 프리뷰로 입력 필드·배너 동작 확인
 
 ## 자체 점검
 
 - 배정(assignment) 로직은 강종+직경 기준 그대로 두고 제조사는 추가 확인 배너로만 표시 — 요구사항대로 반영됨.
 - 서버가 저장 시점에 `tag_manufacturer_match_status`를 권위 있게 재계산 — 기존 `tag_match_status` 패턴과 일관됨.
-- 제조사는 표준 목록 검증 없이 그대로 사용 — 범위 밖 항목으로 명시됨.
+- 실제 현장에 납품하는 7개 제강사로 풀을 구성하고, 풀 밖 값은 인식 실패로 간주(빈값) — 사용자 확인 사항 반영됨.
+- 라벨 매칭·LLM 비전 양쪽 경로 모두 동일한 `spec_grade.normalize_manufacturer`를 거치므로 검증 로직이 한 곳에만 있음(DRY).
 - LLM 폴백은 기존 강종/직경 호출에 통합되어 API 호출이 추가로 늘지 않음.
-- `note` 필드가 비어있는 일반 촬영 송장에서는 판정이 `None`(확인불가)으로 자연스럽게 처리됨 — 별도 예외 처리 불필요.
+- `note` 필드가 비어있거나 풀 밖 값인 경우 판정이 `None`(확인불가)으로 자연스럽게 처리됨 — 별도 예외 처리 불필요.
+- 운영 DB(Render, 기존 데이터 보유)에 대한 컬럼 마이그레이션(`migrations.py`)을 누락 없이 포함 — 이전 LLM 폴백 설계에는 없던 항목이라 별도로 점검함.
+- 풀 목록이 백엔드(`spec_grade.py`)와 프론트엔드(`EditPage.jsx`)에 중복 정의되는 것은 알려진 트레이드오프로 명시함(공유 설정 파일로 뺄 만큼 이 프로젝트에 프론트-백엔드 공유 모듈 체계가 없어 YAGNI로 판단).
