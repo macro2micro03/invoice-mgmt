@@ -68,6 +68,8 @@ def normalize_manufacturer(value: str | None) -> str | None:
     cleaned = _CORPORATE_MARKERS_PATTERN.sub("", stripped)
     if not cleaned:
         return None
+    if cleaned.upper() in MANUFACTURER_POOL:
+        return MANUFACTURER_POOL[cleaned.upper()]
     for canonical_name in MANUFACTURER_POOL.values():
         if canonical_name in cleaned:
             return canonical_name

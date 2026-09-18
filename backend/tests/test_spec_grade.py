@@ -63,6 +63,11 @@ def test_normalize_manufacturer_matches_code_case_insensitive():
     assert normalize_manufacturer("dk") == "동국제강"
 
 
+def test_normalize_manufacturer_matches_code_with_stray_whitespace_or_markers():
+    assert normalize_manufacturer("D K") == "동국제강"
+    assert normalize_manufacturer("(주)DK") == "동국제강"
+
+
 def test_normalize_manufacturer_matches_full_name():
     assert normalize_manufacturer("동국제강") == "동국제강"
 

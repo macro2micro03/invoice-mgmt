@@ -102,9 +102,11 @@ def test_get_invoice_round_trip_returns_tag_fields(monkeypatch):
         data={
             "material_type": "철근",
             "spec": "SHD13",
+            "note": "동국제강",
             "tag_grade": "SD500",
             "tag_diameter": "13",
             "tag_site_name": "서소문 재개발",
+            "tag_manufacturer": "동국제강",
         },
         files={"tag_photo": ("tag.jpg", io.BytesIO(b"fake-tag"), "image/jpeg")},
     )
@@ -118,6 +120,8 @@ def test_get_invoice_round_trip_returns_tag_fields(monkeypatch):
     assert body["tag_site_name"] == "서소문 재개발"
     assert body["tag_match_status"] == "matched"
     assert body["tag_photo_path"] is not None
+    assert body["tag_manufacturer"] == "동국제강"
+    assert body["tag_manufacturer_match_status"] == "matched"
 
 
 def test_update_invoice_ignores_client_supplied_tag_match_status(monkeypatch):
@@ -148,6 +152,40 @@ def test_update_invoice_ignores_client_supplied_tag_match_status(monkeypatch):
     )
     assert update_response.status_code == 200
     assert update_response.json()["tag_match_status"] == "mismatched"
+
+
+def test_update_invoice_recomputes_tag_manufacturer_match_status_ignoring_client_value(monkeypatch):
+    # tag_manufacturer_match_status는 InvoiceUpdate 스키마에 아예 없는 필드라
+    # 클라이언트가 보내도 무시되지만(Pydantic extra='ignore'), 혹시라도
+    # 나중에 실수로 스키마에 추가되더라도 서버가 note/tag_manufacturer로
+    # 다시 계산한 값을 쓴다는 걸 명시적으로 고정해 둔다.
+    monkeypatch.setattr(excel_module, "append_invoice", lambda invoice: None)
+    monkeypatch.setattr(pdf_module, "generate_pdf", lambda invoice: "pdf/x.pdf")
+
+    create_response = client.post(
+        "/invoices",
+        data={
+            "material_type": "철근",
+            "spec": "SHD13",
+            "note": "동국제강",
+            "tag_manufacturer": "동국제강",
+        },
+    )
+    invoice_id = create_response.json()["id"]
+    assert create_response.json()["tag_manufacturer_match_status"] == "matched"
+
+    update_response = client.put(
+        f"/invoices/{invoice_id}",
+        json={
+            "material_type": "철근",
+            "spec": "SHD13",
+            "note": "동국제강",
+            "tag_manufacturer": "현대제철",
+            "tag_manufacturer_match_status": "matched",
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["tag_manufacturer_match_status"] == "mismatched"
 
 
 def test_delete_invoice_removes_it(monkeypatch):
