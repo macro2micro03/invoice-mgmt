@@ -30,17 +30,20 @@ LLM 응답이 아래 목록을 벗어나면 폴백 실패로 간주하고 해당
 ```python
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 CLAUDE_TAG_FALLBACK_MODEL = "claude-haiku-4-5-20251001"
+ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 ```
 
 ### `backend/app/llm_tag_fallback.py` (신규)
+
+기존 `ocr.py`(Upstage)·`email_sender.py`(Brevo)와 동일하게 별도 SDK 없이 `requests`로 Anthropic Messages API를 직접 호출한다(코드베이스 전체가 외부 API 연동에 SDK를 쓰지 않고 REST 호출로 통일돼 있음).
 
 ```python
 VALID_GRADES = {"SD300", "SD400", "SD500", "SD600"}
 VALID_DIAMETERS = {"6", "10", "13", "16", "19", "22", "25", "29", "32", "35", "38", "41", "51", "57"}
 
 def call_claude_vision(image_bytes: bytes, filename: str, media_type: str) -> dict:
-    """Anthropic API를 호출해 원시 JSON({"grade":..., "diameter":...} 또는 필드가 null)을 반환.
-    호출/파싱 실패 시 예외를 던지지 않고 {} 반환."""
+    """Anthropic Messages API(requests.post)를 호출해 원시 dict({"grade":..., "diameter":...}
+    또는 필드가 None)를 반환. 호출/파싱 실패 시 예외를 던지지 않고 {} 반환."""
     ...
 
 def extract_tag_grade_diameter(image_bytes: bytes, filename: str, media_type: str = "image/jpeg") -> tuple[str, str]:
@@ -49,9 +52,11 @@ def extract_tag_grade_diameter(image_bytes: bytes, filename: str, media_type: st
     ...
 ```
 
+- 요청: `POST https://api.anthropic.com/v1/messages`, 헤더 `x-api-key: <ANTHROPIC_API_KEY>`, `anthropic-version: 2023-06-01`, `content-type: application/json`.
+- 바디의 `messages[0].content`에 `{"type": "image", "source": {"type": "base64", "media_type": media_type, "data": base64.b64encode(image_bytes)}}`와 `{"type": "text", "text": prompt}`를 함께 담는다.
 - 프롬프트: "이 사진은 철근 택(꼬리표) 사진입니다. 택에 표시된 철근의 강종과 직경만 다른 설명 없이 JSON으로 답하세요: `{"grade": "SD500 또는 null", "diameter": "13처럼 숫자만, 또는 null"}`. 확신이 없으면 null로 답하세요."
 - `max_tokens`는 작게(예: 100) 설정.
-- Anthropic 클라이언트 호출 실패(네트워크/인증/레이트리밋), JSON 파싱 실패는 모두 `call_claude_vision` 내부에서 잡아 로그(`logger.exception`/`logger.warning`)만 남기고 `{}` 반환.
+- API 호출 실패(네트워크/인증/레이트리밋 — `response.raise_for_status()` 예외 포함), 응답 JSON 파싱 실패는 모두 `call_claude_vision` 내부에서 잡아 로그(`logger.exception`/`logger.warning`)만 남기고 `{}` 반환.
 - `extract_tag_grade_diameter`는 `{}` 또는 목록 밖 값에 대해 해당 필드를 빈 문자열로 채우고, 목록 밖 값이 왔을 때는 원래 값과 함께 경고 로그를 남긴다(`"LLM이 표준 목록 밖의 값을 반환함: grade=%r diameter=%r"`).
 
 ### `backend/app/routers/ocr.py` — `run_tag_ocr` 확장
@@ -74,7 +79,7 @@ if (not fields["tag_grade"] or not fields["tag_diameter"]) and config.ANTHROPIC_
 
 ### `backend/requirements.txt`
 
-`anthropic` SDK 버전을 고정해 추가.
+별도 패키지 추가 없음 — 기존 `requests`(이미 포함됨)로 충분하다.
 
 ## 데이터 흐름
 
