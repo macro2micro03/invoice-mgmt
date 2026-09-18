@@ -5,7 +5,7 @@ import re
 
 import requests
 
-from . import config
+from . import config, spec_grade
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +14,14 @@ VALID_DIAMETERS = {"6", "10", "13", "16", "19", "22", "25", "29", "32", "35", "3
 SUPPORTED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
 _PROMPT = (
-    "이 사진은 철근 택(꼬리표) 사진입니다. 택에 표시된 철근의 강종과 직경만 "
-    "다른 설명 없이 JSON으로 답하세요: "
+    "이 사진은 철근 택(꼬리표) 사진입니다. 택에 표시된 철근의 강종, 직경, "
+    "제조사만 다른 설명 없이 JSON으로 답하세요: "
     '{"grade": "SD300/SD400/SD500/SD600 중 하나, 모르면 null", '
-    '"diameter": "13처럼 숫자만, 모르면 null"}. 확신이 없으면 null로 답하세요.'
+    '"diameter": "13처럼 숫자만, 모르면 null", '
+    '"manufacturer": "다음 7개 제강사 중 하나만 — HS(현대제철), DK(동국제강), '
+    'DH(대한제강), HK(한국철강), HY(환영철강), YK(YK스틸), HJ(한국제강). '
+    '코드나 정식명칭 아무거나로 답해도 됩니다. 이 목록에 없거나 모르면 null"}. '
+    "확신이 없으면 null로 답하세요."
 )
 
 # 지시에도 불구하고 응답 앞뒤에 설명 문장이나 코드펜스가 붙는 경우가 있어,
@@ -103,15 +107,23 @@ def _valid_diameter(value) -> str:
     return normalized if normalized in VALID_DIAMETERS else ""
 
 
-def extract_tag_grade_diameter(image_bytes: bytes, filename: str, media_type: str = "image/jpeg") -> tuple[str, str]:
-    """call_claude_vision 결과를 VALID_GRADES/VALID_DIAMETERS로 검증해
-    (grade, diameter)를 반환한다. API 실패, 파싱 실패, 표준 목록 밖의 값 —
-    어떤 경우든 해당 필드는 예외 없이 빈 문자열("")이 된다."""
+def _valid_manufacturer(value) -> str:
+    if not isinstance(value, str):
+        return ""
+    return spec_grade.normalize_manufacturer(value) or ""
+
+
+def extract_tag_fields(image_bytes: bytes, filename: str, media_type: str = "image/jpeg") -> tuple[str, str, str]:
+    """call_claude_vision 결과를 검증해 (grade, diameter, manufacturer)를 반환한다.
+    API 실패, 파싱 실패, 표준 목록/제조사 풀 밖의 값 — 어떤 경우든 해당 필드는
+    예외 없이 빈 문자열("")이 된다."""
     raw = call_claude_vision(image_bytes, filename, media_type)
     raw_grade = raw.get("grade")
     raw_diameter = raw.get("diameter")
+    raw_manufacturer = raw.get("manufacturer")
     grade = _valid_grade(raw_grade)
     diameter = _valid_diameter(raw_diameter)
+    manufacturer = _valid_manufacturer(raw_manufacturer)
     if raw_grade and not grade:
         logger.warning(
             "Claude 비전 폴백이 표준 강종 목록 밖의 값을 반환함 (filename=%s): grade=%r",
@@ -124,4 +136,10 @@ def extract_tag_grade_diameter(image_bytes: bytes, filename: str, media_type: st
             filename,
             raw_diameter,
         )
-    return grade, diameter
+    if raw_manufacturer and not manufacturer:
+        logger.warning(
+            "Claude 비전 폴백이 제조사 풀 밖의 값을 반환함 (filename=%s): manufacturer=%r",
+            filename,
+            raw_manufacturer,
+        )
+    return grade, diameter, manufacturer

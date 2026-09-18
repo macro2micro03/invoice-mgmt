@@ -62,12 +62,14 @@ async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(N
         except Exception:
             logger.exception("일반 텍스트 인식 API 호출 실패 (filename=%s)", file.filename)
     fields = ocr.normalize_tag_fields(text)
-    if not fields["tag_grade"] or not fields["tag_diameter"]:
+    if not fields["tag_grade"] or not fields["tag_diameter"] or not fields["tag_manufacturer"]:
         logger.warning(
-            "택에서 강도/직경 인식 실패 (filename=%s, tag_grade=%r, tag_diameter=%r) — 텍스트 미리보기: %r",
+            "택에서 강도/직경/제조사 인식 실패 (filename=%s, tag_grade=%r, tag_diameter=%r, tag_manufacturer=%r)"
+            " — 텍스트 미리보기: %r",
             file.filename,
             fields["tag_grade"],
             fields["tag_diameter"],
+            fields["tag_manufacturer"],
             text[:500],
         )
         if config.ANTHROPIC_API_KEY:
@@ -76,13 +78,15 @@ async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(N
                 if file.content_type in llm_tag_fallback.SUPPORTED_MEDIA_TYPES
                 else "image/jpeg"
             )
-            llm_grade, llm_diameter = llm_tag_fallback.extract_tag_grade_diameter(
+            llm_grade, llm_diameter, llm_manufacturer = llm_tag_fallback.extract_tag_fields(
                 image_bytes, file.filename or "tag.jpg", media_type
             )
             if not fields["tag_grade"] and llm_grade:
                 fields["tag_grade"] = llm_grade
             if not fields["tag_diameter"] and llm_diameter:
                 fields["tag_diameter"] = llm_diameter
+            if not fields["tag_manufacturer"] and llm_manufacturer:
+                fields["tag_manufacturer"] = llm_manufacturer
     tag_match_status = None
     if spec:
         tag_match_status = spec_grade.match_tag_to_spec(

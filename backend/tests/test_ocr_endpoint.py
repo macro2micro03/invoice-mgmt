@@ -196,18 +196,20 @@ def test_tag_ocr_endpoint_returns_blank_fields_on_ocr_failure(monkeypatch):
 
 
 def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_regex_parsing_fails(monkeypatch):
-    # "종류"/"치수"처럼 라벨 매칭(직경/호칭경/강도/강종)에도, 정규식 fallback
-    # 패턴(SD/SHD/UHD+숫자, D+숫자)에도 걸리지 않는 제조사별 표기를 흉내낸다.
+    # "종류"/"치수"처럼 라벨 매칭(직경/호칭경/강도/강종/제조사/제강사)에도,
+    # 정규식 fallback 패턴(SD/SHD/UHD+숫자, D+숫자)에도 걸리지 않는 제조사별
+    # 표기를 흉내낸다. "생산업체"는 "제조사"/"제강사" 라벨과 겹치지 않도록
+    # 일부러 고른 표현이다.
     monkeypatch.setattr(
         ocr_module,
         "call_upstage_ocr",
-        lambda image_bytes, filename="x": {"text": "종류: 5호강\n치수: 13mm\n제조사: 현대제철"},
+        lambda image_bytes, filename="x": {"text": "종류: 5호강\n치수: 13mm\n생산업체: 현대제철"},
     )
     monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(
         ocr_router.llm_tag_fallback,
-        "extract_tag_grade_diameter",
-        lambda image_bytes, filename, media_type: ("SD500", "13"),
+        "extract_tag_fields",
+        lambda image_bytes, filename, media_type: ("SD500", "13", "현대제철"),
     )
     response = client.post(
         "/ocr/tag",
@@ -218,42 +220,47 @@ def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_regex_parsing_fails(monk
     body = response.json()
     assert body["tag_grade"] == "SD500"
     assert body["tag_diameter"] == "13"
+    assert body["tag_manufacturer"] == "현대제철"
     assert body["tag_match_status"] == "matched"
 
 
 def test_tag_ocr_endpoint_skips_llm_vision_fallback_when_regex_parsing_succeeds(monkeypatch):
+    # 강도/직경/제조사가 모두 라벨로 이미 채워지면 폴백 트리거 조건
+    # (셋 중 하나라도 비어있음)이 성립하지 않아 LLM이 호출되지 않는다.
     monkeypatch.setattr(
         ocr_module,
         "call_upstage_ocr",
-        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD500\n"},
+        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD500\n제조사: 현대제철\n"},
     )
     monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
 
     def fail_if_called(*args, **kwargs):
         raise AssertionError("regex parsing already succeeded — LLM fallback should not be called")
 
-    monkeypatch.setattr(ocr_router.llm_tag_fallback, "extract_tag_grade_diameter", fail_if_called)
+    monkeypatch.setattr(ocr_router.llm_tag_fallback, "extract_tag_fields", fail_if_called)
     response = client.post(
         "/ocr/tag",
         data={"spec": "SHD13"},
         files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
     )
     assert response.status_code == 200
-    assert response.json()["tag_grade"] == "SD500"
+    body = response.json()
+    assert body["tag_grade"] == "SD500"
+    assert body["tag_manufacturer"] == "현대제철"
 
 
 def test_tag_ocr_endpoint_skips_llm_vision_fallback_when_api_key_missing(monkeypatch):
     monkeypatch.setattr(
         ocr_module,
         "call_upstage_ocr",
-        lambda image_bytes, filename="x": {"text": "종류: 5호강\n치수: 13mm\n제조사: 현대제철"},
+        lambda image_bytes, filename="x": {"text": "종류: 5호강\n치수: 13mm\n생산업체: 현대제철"},
     )
     monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "")
 
     def fail_if_called(*args, **kwargs):
         raise AssertionError("ANTHROPIC_API_KEY unset — LLM fallback should not be called")
 
-    monkeypatch.setattr(ocr_router.llm_tag_fallback, "extract_tag_grade_diameter", fail_if_called)
+    monkeypatch.setattr(ocr_router.llm_tag_fallback, "extract_tag_fields", fail_if_called)
     response = client.post(
         "/ocr/tag",
         data={"spec": "SHD13"},
@@ -263,11 +270,12 @@ def test_tag_ocr_endpoint_skips_llm_vision_fallback_when_api_key_missing(monkeyp
     body = response.json()
     assert body["tag_grade"] == ""
     assert body["tag_diameter"] == ""
+    assert body["tag_manufacturer"] == ""
 
 
 def test_tag_ocr_endpoint_never_overwrites_field_already_found_by_regex(monkeypatch):
-    # 정규식이 직경만 찾고 강도는 못 찾은 경우, LLM이 두 필드 모두에 값을
-    # 반환해도 이미 찾은 직경은 절대 덮어쓰면 안 된다.
+    # 정규식이 직경만 찾고 강도/제조사는 못 찾은 경우, LLM이 세 필드 모두에
+    # 값을 반환해도 이미 찾은 직경은 절대 덮어쓰면 안 된다.
     monkeypatch.setattr(
         ocr_module,
         "call_upstage_ocr",
@@ -276,8 +284,8 @@ def test_tag_ocr_endpoint_never_overwrites_field_already_found_by_regex(monkeypa
     monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(
         ocr_router.llm_tag_fallback,
-        "extract_tag_grade_diameter",
-        lambda image_bytes, filename, media_type: ("SD500", "99"),
+        "extract_tag_fields",
+        lambda image_bytes, filename, media_type: ("SD500", "99", "동국제강"),
     )
     response = client.post(
         "/ocr/tag",
@@ -288,3 +296,31 @@ def test_tag_ocr_endpoint_never_overwrites_field_already_found_by_regex(monkeypa
     body = response.json()
     assert body["tag_diameter"] == "13"
     assert body["tag_grade"] == "SD500"
+    assert body["tag_manufacturer"] == "동국제강"
+
+
+def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_only_manufacturer_missing(monkeypatch):
+    # 강도/직경은 라벨로 찾았지만 제조사 라벨이 없는 경우에도 폴백이
+    # 트리거되어야 하고, 이미 찾은 강도/직경은 LLM이 (일부러 틀린 값을)
+    # 반환해도 덮어쓰이면 안 된다.
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_ocr",
+        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD500\n"},
+    )
+    monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ocr_router.llm_tag_fallback,
+        "extract_tag_fields",
+        lambda image_bytes, filename, media_type: ("SD600", "22", "동국제강"),
+    )
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_grade"] == "SD500"
+    assert body["tag_diameter"] == "13"
+    assert body["tag_manufacturer"] == "동국제강"
