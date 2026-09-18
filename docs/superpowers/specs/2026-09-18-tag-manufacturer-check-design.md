@@ -279,19 +279,45 @@ function matchManufacturer(tagManufacturer, note) {
   if (normTag === null || normNote === null) return null
   return normTag === normNote ? 'matched' : 'mismatched'
 }
+
+// 배너 표시용 — 저장되는 tag_manufacturer는 정식명칭이지만, 적합 배너에는
+// 코드로 표기해달라는 요청에 따라 정식명칭 → 코드 역변환 테이블을 둔다.
+const CODE_BY_MANUFACTURER = Object.fromEntries(
+  Object.entries(MANUFACTURER_POOL).map(([code, name]) => [name, code]),
+)
 ```
 
 - 택 카드에 "제조사(자동 인식, 다르면 직접 수정)" 입력 필드 추가 (`tag_grade`/`tag_diameter` 입력 필드와 같은 패턴, `handleTagFieldEdit(file, 'tag_manufacturer', ...)`)
-- 배정된 자재 카드 아래, 기존 강종/직경 일치 배너와 별도로 제조사 확인 배너 추가:
+- 배정된 자재 카드의 기존 성공 배너를 **강종+직경+제조사가 모두 일치할 때만** 아래 통합 문구로 바꾸고, 그렇지 않으면 기존 문구를 유지하되 제조사가 명백히 불일치인 경우에만 별도 경고 배너를 추가한다(제조사를 판정할 수 없는 경우 — `note`가 비어있거나 풀 밖인 경우 — 는 경고 없이 조용히 넘어간다):
 
 ```jsx
 {itemAssignments[index] && (() => {
-  const status = matchManufacturer(itemAssignments[index].result.tag_manufacturer, item.note)
-  if (status === 'matched') return <p className="banner banner-success">제조사가 일치합니다: {itemAssignments[index].result.tag_manufacturer}</p>
-  if (status === 'mismatched') return <p className="banner banner-warning">택 제조사({itemAssignments[index].result.tag_manufacturer})가 송장 비고({item.note})와 다릅니다</p>
-  return null
+  const tag = itemAssignments[index].result
+  const manufacturerStatus = matchManufacturer(tag.tag_manufacturer, item.note)
+  if (manufacturerStatus === 'matched') {
+    const code = CODE_BY_MANUFACTURER[tag.tag_manufacturer] || tag.tag_manufacturer
+    return (
+      <p className="banner banner-success">
+        일치하는 철근 Tag을 확인했습니다 : {tag.tag_grade}, D{tag.tag_diameter}, {code}
+      </p>
+    )
+  }
+  return (
+    <>
+      <p className="banner banner-success">
+        일치하는 철근 Tag를 확인했습니다: {tag.tag_grade} D{tag.tag_diameter}
+      </p>
+      {manufacturerStatus === 'mismatched' && (
+        <p className="banner banner-warning">
+          택 제조사({tag.tag_manufacturer})가 송장 비고({item.note})와 다릅니다
+        </p>
+      )}
+    </>
+  )
 })()}
 ```
+
+(택 카드 쪽의 기존 "이 규격은 송장에 포함되어 있습니다 — 이상 없습니다" 배너는 자재 배정과 무관하게 강종/직경만으로 판단하는 별개 문구라 이번 변경 대상이 아니다.)
 
 - `handleSave`의 `tagFields` 구조분해에 `tag_manufacturer` 추가
 
@@ -333,3 +359,4 @@ function matchManufacturer(tagManufacturer, note) {
 - `note` 필드가 비어있거나 풀 밖 값인 경우 판정이 `None`(확인불가)으로 자연스럽게 처리됨 — 별도 예외 처리 불필요.
 - 운영 DB(Render, 기존 데이터 보유)에 대한 컬럼 마이그레이션(`migrations.py`)을 누락 없이 포함 — 이전 LLM 폴백 설계에는 없던 항목이라 별도로 점검함.
 - 풀 목록이 백엔드(`spec_grade.py`)와 프론트엔드(`EditPage.jsx`)에 중복 정의되는 것은 알려진 트레이드오프로 명시함(공유 설정 파일로 뺄 만큼 이 프로젝트에 프론트-백엔드 공유 모듈 체계가 없어 YAGNI로 판단).
+- 편집 화면의 통합 적합 배너는 강종+직경+제조사가 모두 일치할 때만 표시하고, 코드(예: DK)로 표기 — 사용자 확인 사항 반영됨. 판정 불가(제조사 미확인) 상태는 기존 강종/직경 배너만 그대로 두고 경고를 띄우지 않아, 오탐(false warning)을 만들지 않음.
