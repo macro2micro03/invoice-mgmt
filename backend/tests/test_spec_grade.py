@@ -77,6 +77,15 @@ def test_normalize_manufacturer_matches_with_extra_info():
     assert normalize_manufacturer("동국제강(부산공장)") == "동국제강"
 
 
+def test_normalize_manufacturer_does_not_match_generic_substring_of_canonical_name():
+    # "제강"/"철강"은 "제철소"라는 뜻의 일반 명사일 뿐 특정 업체를 가리키지
+    # 않는다. 여러 풀 항목(동국제강/대한제강/한국제강, 한국철강/환영철강)의
+    # 부분 문자열이라서, 이런 짧은 조각만으로 특정 업체로 단정하면 사전
+    # 순서에 따라 틀린 업체로 오판정될 위험이 있다.
+    assert normalize_manufacturer("제강") is None
+    assert normalize_manufacturer("철강") is None
+
+
 def test_normalize_manufacturer_outside_pool_returns_none():
     assert normalize_manufacturer("알수없는제강") is None
 

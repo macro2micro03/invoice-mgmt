@@ -69,7 +69,7 @@ def normalize_manufacturer(value: str | None) -> str | None:
     if not cleaned:
         return None
     for canonical_name in MANUFACTURER_POOL.values():
-        if canonical_name in cleaned or cleaned in canonical_name:
+        if canonical_name in cleaned:
             return canonical_name
     return None
 
