@@ -21,7 +21,8 @@
 
     $env:UPSTAGE_API_KEY = "발급받은 API 키"
     $env:STORAGE_DIR = "C:\경로\원하는\저장폴더"
-    $env:ANTHROPIC_API_KEY = "발급받은 Anthropic API 키 (선택 — 철근 Tag 규격 인식 실패 시 Claude 비전 폴백용, 없으면 폴백만 건너뜀)"
+    # 선택 — 철근 Tag 규격 인식 실패 시 Claude 비전 폴백용. 없으면 폴백만 건너뜀
+    $env:ANTHROPIC_API_KEY = "발급받은 Anthropic API 키"
 
 2. 백엔드 실행:
 
