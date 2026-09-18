@@ -1,4 +1,4 @@
-from app.spec_grade import match_tag_to_spec, parse_spec_grade_diameter
+from app.spec_grade import match_manufacturer, match_tag_to_spec, normalize_manufacturer, parse_spec_grade_diameter
 
 
 def test_parse_spec_grade_diameter_sd_is_sd400():
@@ -55,3 +55,58 @@ def test_match_tag_to_spec_grade_with_space_normalizes():
 
 def test_match_tag_to_spec_grade_with_hyphen_normalizes():
     assert match_tag_to_spec("sd-500", "13", "SHD13") == "matched"
+
+
+def test_normalize_manufacturer_matches_code_case_insensitive():
+    assert normalize_manufacturer("HS") == "현대제철"
+    assert normalize_manufacturer("hs") == "현대제철"
+    assert normalize_manufacturer("dk") == "동국제강"
+
+
+def test_normalize_manufacturer_matches_full_name():
+    assert normalize_manufacturer("동국제강") == "동국제강"
+
+
+def test_normalize_manufacturer_strips_corporate_markers():
+    assert normalize_manufacturer("㈜대한제강") == "대한제강"
+    assert normalize_manufacturer("주식회사 한국철강") == "한국철강"
+    assert normalize_manufacturer("(주)환영철강") == "환영철강"
+
+
+def test_normalize_manufacturer_matches_with_extra_info():
+    assert normalize_manufacturer("동국제강(부산공장)") == "동국제강"
+
+
+def test_normalize_manufacturer_outside_pool_returns_none():
+    assert normalize_manufacturer("알수없는제강") is None
+
+
+def test_normalize_manufacturer_empty_or_none_returns_none():
+    assert normalize_manufacturer("") is None
+    assert normalize_manufacturer(None) is None
+
+
+def test_match_manufacturer_matched_across_code_and_name():
+    assert match_manufacturer("HS", "현대제철") == "matched"
+
+
+def test_match_manufacturer_matched_with_corporate_marker_difference():
+    assert match_manufacturer("㈜동국제강", "동국제강") == "matched"
+
+
+def test_match_manufacturer_mismatched():
+    assert match_manufacturer("HS", "동국제강") == "mismatched"
+
+
+def test_match_manufacturer_returns_none_when_tag_manufacturer_missing():
+    assert match_manufacturer(None, "동국제강") is None
+    assert match_manufacturer("", "동국제강") is None
+
+
+def test_match_manufacturer_returns_none_when_note_missing():
+    assert match_manufacturer("HS", None) is None
+    assert match_manufacturer("HS", "") is None
+
+
+def test_match_manufacturer_returns_none_when_note_outside_pool():
+    assert match_manufacturer("HS", "이상한업체") is None
