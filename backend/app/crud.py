@@ -20,11 +20,13 @@ def create_invoice(
     tag_match_status = explicit_tag_match_status or spec_grade.match_tag_to_spec(
         data.tag_grade, data.tag_diameter, data.spec or ""
     )
+    tag_manufacturer_match_status = spec_grade.match_manufacturer(data.tag_manufacturer, data.note)
     invoice = models.Invoice(
         **payload,
         photo_path=photo_path,
         tag_photo_path=tag_photo_path,
         tag_match_status=tag_match_status,
+        tag_manufacturer_match_status=tag_manufacturer_match_status,
     )
     db.add(invoice)
     db.commit()
@@ -62,6 +64,7 @@ def update_invoice(db: Session, invoice_id: int, data: schemas.InvoiceUpdate) ->
     for key, value in data.model_dump().items():
         setattr(invoice, key, value)
     invoice.tag_match_status = spec_grade.match_tag_to_spec(invoice.tag_grade, invoice.tag_diameter, invoice.spec or "")
+    invoice.tag_manufacturer_match_status = spec_grade.match_manufacturer(invoice.tag_manufacturer, invoice.note)
     db.commit()
     db.refresh(invoice)
     return invoice

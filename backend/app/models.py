@@ -30,6 +30,8 @@ class Invoice(Base):
     tag_quantity = Column(String, nullable=True)
     tag_shape = Column(String, nullable=True)
     tag_match_status = Column(String, nullable=True)
+    tag_manufacturer = Column(String, nullable=True)
+    tag_manufacturer_match_status = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

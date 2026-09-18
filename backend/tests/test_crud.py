@@ -209,3 +209,38 @@ def test_list_invoices_by_ids_ignores_missing_ids(db_session):
 
 def test_list_invoices_by_ids_empty_list_returns_empty(db_session):
     assert crud.list_invoices_by_ids(db_session, []) == []
+
+
+def test_create_invoice_computes_matched_manufacturer_status(db_session):
+    created = crud.create_invoice(
+        db_session, make_invoice_data(note="동국제강", tag_manufacturer="동국제강")
+    )
+    assert created.tag_manufacturer_match_status == "matched"
+
+
+def test_create_invoice_computes_matched_manufacturer_status_across_code_and_name(db_session):
+    created = crud.create_invoice(
+        db_session, make_invoice_data(note="현대제철", tag_manufacturer="HS")
+    )
+    assert created.tag_manufacturer_match_status == "matched"
+
+
+def test_create_invoice_computes_mismatched_manufacturer_status(db_session):
+    created = crud.create_invoice(
+        db_session, make_invoice_data(note="동국제강", tag_manufacturer="현대제철")
+    )
+    assert created.tag_manufacturer_match_status == "mismatched"
+
+
+def test_create_invoice_without_manufacturer_info_leaves_status_none(db_session):
+    created = crud.create_invoice(db_session, make_invoice_data(note="", tag_manufacturer=""))
+    assert created.tag_manufacturer_match_status is None
+
+
+def test_update_invoice_recomputes_manufacturer_match_status(db_session):
+    created = crud.create_invoice(db_session, make_invoice_data(note="동국제강"))
+    update_data = schemas.InvoiceUpdate(
+        **{**make_invoice_data(note="동국제강").model_dump(), "tag_manufacturer": "동국제강"}
+    )
+    updated = crud.update_invoice(db_session, created.id, update_data)
+    assert updated.tag_manufacturer_match_status == "matched"

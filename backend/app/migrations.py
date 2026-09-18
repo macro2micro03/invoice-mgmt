@@ -11,6 +11,8 @@ TAG_COLUMNS = {
     "tag_quantity": "VARCHAR",
     "tag_shape": "VARCHAR",
     "tag_match_status": "VARCHAR",
+    "tag_manufacturer": "VARCHAR",
+    "tag_manufacturer_match_status": "VARCHAR",
 }
 
 

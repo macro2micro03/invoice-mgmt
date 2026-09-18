@@ -23,6 +23,7 @@ class InvoiceBase(BaseModel):
     tag_length: Optional[str] = None
     tag_quantity: Optional[str] = None
     tag_shape: Optional[str] = None
+    tag_manufacturer: Optional[str] = None
 
 
 class InvoiceCreate(InvoiceBase):
@@ -70,6 +71,7 @@ class InvoiceOut(InvoiceBase):
     photo_path: Optional[str] = None
     tag_photo_path: Optional[str] = None
     tag_match_status: Optional[str] = None
+    tag_manufacturer_match_status: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
