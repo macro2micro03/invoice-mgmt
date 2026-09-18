@@ -17,6 +17,9 @@ UPSTAGE_OCR_URL = "https://api.upstage.ai/v1/document-ai/document-parse"
 # 없는 사진에서는 요소를 하나도 인식하지 못하는 경우가 있다. 이럴 때
 # 일반 텍스트 인식용 OCR API를 보조 수단으로 사용한다.
 UPSTAGE_TEXT_OCR_URL = "https://api.upstage.ai/v1/document-ai/ocr"
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+CLAUDE_TAG_FALLBACK_MODEL = "claude-haiku-4-5-20251001"
+ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 MAJOR_MATERIALS = {"철근", "철골", "레미콘", "시멘트"}
 SUPPORTED_MATERIALS = [
     "철근",
