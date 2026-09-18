@@ -206,3 +206,21 @@ def test_normalize_tag_fields_handles_table_concatenated_line():
     assert fields["tag_diameter"] == "13"
     assert fields["tag_grade"] == "SD500"
     assert fields["tag_length"] == "12000"
+
+
+def test_normalize_tag_fields_extracts_manufacturer_label_and_normalizes_to_pool():
+    text = "직경: 13\n강도: SD500\n제조사: ㈜현대제철\n"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_manufacturer"] == "현대제철"
+
+
+def test_normalize_tag_fields_manufacturer_label_code_normalizes_to_full_name():
+    text = "직경: 13\n강도: SD500\n제강사: DK\n"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_manufacturer"] == "동국제강"
+
+
+def test_normalize_tag_fields_manufacturer_outside_pool_returns_empty_string():
+    text = "직경: 13\n강도: SD500\n제조사: 알수없는제강\n"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_manufacturer"] == ""

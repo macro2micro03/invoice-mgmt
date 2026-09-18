@@ -29,6 +29,7 @@ TAG_FIELD_LABELS = {
     "tag_length": ["길이"],
     "tag_quantity": ["수량"],
     "tag_shape": ["가공형상", "형상"],
+    "tag_manufacturer": ["제조사", "제강사"],
 }
 
 TAG_FIELDS = list(TAG_FIELD_LABELS.keys())
@@ -195,5 +196,7 @@ def normalize_tag_fields(raw_text: str) -> dict:
             result["tag_grade"] = fallback_grade
         if not result["tag_diameter"] and fallback_diameter:
             result["tag_diameter"] = fallback_diameter
+
+    result["tag_manufacturer"] = spec_grade.normalize_manufacturer(result["tag_manufacturer"]) or ""
 
     return result
