@@ -66,6 +66,15 @@ def test_normalize_manufacturer_matches_with_extra_info():
     assert normalize_manufacturer("동국제강(부산공장)") == "동국제강"
 
 
+def test_normalize_manufacturer_does_not_match_generic_substring_of_canonical_name():
+    # "제강"/"철강"은 "제철소"라는 뜻의 일반 명사일 뿐 특정 업체를 가리키지
+    # 않는다. 여러 풀 항목(동국제강/대한제강/한국제강, 한국철강/환영철강)의
+    # 부분 문자열이라서, 이런 짧은 조각만으로 특정 업체로 단정하면 사전
+    # 순서에 따라 틀린 업체로 오판정될 위험이 있다.
+    assert normalize_manufacturer("제강") is None
+    assert normalize_manufacturer("철강") is None
+
+
 def test_normalize_manufacturer_outside_pool_returns_none():
     assert normalize_manufacturer("알수없는제강") is None
 
@@ -137,7 +146,7 @@ def normalize_manufacturer(value: str | None) -> str | None:
     if not cleaned:
         return None
     for canonical_name in MANUFACTURER_POOL.values():
-        if canonical_name in cleaned or cleaned in canonical_name:
+        if canonical_name in cleaned:
             return canonical_name
     return None
 
@@ -153,7 +162,7 @@ def match_manufacturer(tag_manufacturer: str | None, note: str | None) -> str | 
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && python -m pytest tests/test_spec_grade.py -v`
-Expected: PASS (기존 11개 + 신규 12개 = 23개)
+Expected: PASS (기존 14개 + 신규 13개 = 27개 — 계획 작성 시점에 기존 테스트 개수를 11개로 잘못 셌었다; 실제로는 14개였다)
 
 - [ ] **Step 5: Commit**
 
@@ -887,9 +896,10 @@ function normalizeManufacturer(value) {
   if (MANUFACTURER_POOL[code]) return MANUFACTURER_POOL[code]
   const cleaned = stripped.replace(CORPORATE_MARKERS_PATTERN, '')
   if (!cleaned) return null
-  const found = Object.values(MANUFACTURER_POOL).find(
-    (name) => cleaned.includes(name) || name.includes(cleaned),
-  )
+  // "제강"/"철강"처럼 여러 풀 항목에 공통으로 들어있는 일반 명사 조각만으로
+  // 특정 업체로 오판정되지 않도록, cleaned가 정식명칭에 포함되는 방향만
+  // 허용한다(정식명칭이 cleaned에 포함되는 방향만 — 반대 방향은 금지).
+  const found = Object.values(MANUFACTURER_POOL).find((name) => cleaned.includes(name))
   return found || null
 }
 
