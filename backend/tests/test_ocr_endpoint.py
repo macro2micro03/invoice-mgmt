@@ -207,7 +207,7 @@ def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_regex_parsing_fails(monk
     monkeypatch.setattr(
         ocr_router.llm_tag_fallback,
         "extract_tag_grade_diameter",
-        lambda image_bytes, filename: ("SD500", "13"),
+        lambda image_bytes, filename, media_type: ("SD500", "13"),
     )
     response = client.post(
         "/ocr/tag",
@@ -263,3 +263,28 @@ def test_tag_ocr_endpoint_skips_llm_vision_fallback_when_api_key_missing(monkeyp
     body = response.json()
     assert body["tag_grade"] == ""
     assert body["tag_diameter"] == ""
+
+
+def test_tag_ocr_endpoint_never_overwrites_field_already_found_by_regex(monkeypatch):
+    # 정규식이 직경만 찾고 강도는 못 찾은 경우, LLM이 두 필드 모두에 값을
+    # 반환해도 이미 찾은 직경은 절대 덮어쓰면 안 된다.
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_ocr",
+        lambda image_bytes, filename="x": {"text": "직경: 13\n종류: 5호강"},
+    )
+    monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ocr_router.llm_tag_fallback,
+        "extract_tag_grade_diameter",
+        lambda image_bytes, filename, media_type: ("SD500", "99"),
+    )
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_diameter"] == "13"
+    assert body["tag_grade"] == "SD500"

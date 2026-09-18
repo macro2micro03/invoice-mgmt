@@ -71,8 +71,13 @@ async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(N
             text[:500],
         )
         if config.ANTHROPIC_API_KEY:
+            media_type = (
+                file.content_type
+                if file.content_type in llm_tag_fallback.SUPPORTED_MEDIA_TYPES
+                else "image/jpeg"
+            )
             llm_grade, llm_diameter = llm_tag_fallback.extract_tag_grade_diameter(
-                image_bytes, file.filename or "tag.jpg"
+                image_bytes, file.filename or "tag.jpg", media_type
             )
             if not fields["tag_grade"] and llm_grade:
                 fields["tag_grade"] = llm_grade

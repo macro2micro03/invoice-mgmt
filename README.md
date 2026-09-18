@@ -21,6 +21,7 @@
 
     $env:UPSTAGE_API_KEY = "발급받은 API 키"
     $env:STORAGE_DIR = "C:\경로\원하는\저장폴더"
+    $env:ANTHROPIC_API_KEY = "발급받은 Anthropic API 키 (선택 — 철근 Tag 규격 인식 실패 시 Claude 비전 폴백용, 없으면 폴백만 건너뜀)"
 
 2. 백엔드 실행:
 
@@ -80,6 +81,7 @@
    - `UPSTAGE_API_KEY` = 발급받은 Upstage API 키
    - `APP_PASSWORD` = 현장 직원들과 공유할 비밀번호 (**필수** — 설정하지 않으면 인증 없이 누구나 접속 가능합니다)
    - `STORAGE_DIR` = `/opt/render/project/src/backend/storage` (또는 원하는 경로)
+   - `ANTHROPIC_API_KEY` = 발급받은 Anthropic API 키 (선택 — 철근 Tag 규격(강도/직경) 인식이 기존 방식으로 실패했을 때 Claude 비전으로 재시도. 미설정 시 이 폴백만 건너뛰고 나머지 기능은 정상 동작)
 5. 배포 완료 후 발급되는 URL(예: `https://xxx.onrender.com`)을 기록해둡니다.
 
 **Python 버전 고정 필수:** `backend/.python-version`에 `3.12.7`을 명시해두었습니다. `psycopg2-binary`가 최신 Python(3.13/3.14)용 바이너리를 아직 지원하지 않아, Render가 기본값으로 최신 Python을 쓰면 서버가 시작하자마자 `ImportError`로 죽습니다. 만약 배포가 계속 실패하면 Render 대시보드 → Environment에서 `PYTHON_VERSION` = `3.12.7`을 직접 추가해 확실히 고정하세요.

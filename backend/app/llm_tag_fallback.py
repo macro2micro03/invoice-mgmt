@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 VALID_GRADES = {"SD300", "SD400", "SD500", "SD600"}
 VALID_DIAMETERS = {"6", "10", "13", "16", "19", "22", "25", "29", "32", "35", "38", "41", "51", "57"}
+SUPPORTED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
 _PROMPT = (
     "이 사진은 철근 택(꼬리표) 사진입니다. 택에 표시된 철근의 강종과 직경만 "
@@ -25,6 +26,9 @@ _JSON_BLOCK_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
 
 
 def call_claude_vision(image_bytes: bytes, filename: str, media_type: str = "image/jpeg") -> dict:
+    """Anthropic Messages API를 호출해 원시 응답 JSON을 dict로 반환한다.
+    API 키 미설정, 호출 실패, 응답 파싱 실패 등 어떤 이유로든 실패하면 예외를
+    던지지 않고 항상 {}를 반환한다."""
     if not config.ANTHROPIC_API_KEY:
         return {}
     try:
@@ -37,7 +41,7 @@ def call_claude_vision(image_bytes: bytes, filename: str, media_type: str = "ima
             },
             json={
                 "model": config.CLAUDE_TAG_FALLBACK_MODEL,
-                "max_tokens": 100,
+                "max_tokens": 200,
                 "messages": [
                     {
                         "role": "user",
@@ -59,11 +63,15 @@ def call_claude_vision(image_bytes: bytes, filename: str, media_type: str = "ima
         )
         response.raise_for_status()
     except Exception:
-        logger.exception("Claude 비전 폴백 API 호출 실패 (filename=%s)", filename)
+        logger.exception(
+            "Claude 비전 폴백 API 호출 실패 (filename=%s, bytes=%d)", filename, len(image_bytes)
+        )
         return {}
 
+    stop_reason = None
     try:
         body = response.json()
+        stop_reason = body.get("stop_reason")
         text = body["content"][0]["text"]
         match = _JSON_BLOCK_PATTERN.search(text)
         if not match:
@@ -71,8 +79,9 @@ def call_claude_vision(image_bytes: bytes, filename: str, media_type: str = "ima
         return json.loads(match.group(0))
     except Exception:
         logger.warning(
-            "Claude 비전 폴백 응답을 JSON으로 파싱하지 못함 (filename=%s) — 원본: %r",
+            "Claude 비전 폴백 응답을 JSON으로 파싱하지 못함 (filename=%s, stop_reason=%r) — 원본: %r",
             filename,
+            stop_reason,
             response.text[:500],
         )
         return {}
@@ -95,6 +104,9 @@ def _valid_diameter(value) -> str:
 
 
 def extract_tag_grade_diameter(image_bytes: bytes, filename: str, media_type: str = "image/jpeg") -> tuple[str, str]:
+    """call_claude_vision 결과를 VALID_GRADES/VALID_DIAMETERS로 검증해
+    (grade, diameter)를 반환한다. API 실패, 파싱 실패, 표준 목록 밖의 값 —
+    어떤 경우든 해당 필드는 예외 없이 빈 문자열("")이 된다."""
     raw = call_claude_vision(image_bytes, filename, media_type)
     raw_grade = raw.get("grade")
     raw_diameter = raw.get("diameter")

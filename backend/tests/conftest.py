@@ -5,6 +5,7 @@ from pathlib import Path
 TEST_STORAGE_DIR = tempfile.mkdtemp(prefix="invoice_test_")
 os.environ["STORAGE_DIR"] = TEST_STORAGE_DIR
 os.environ["DATABASE_URL"] = f"sqlite:///{(Path(TEST_STORAGE_DIR) / 'test.db').as_posix()}"
+os.environ.pop("ANTHROPIC_API_KEY", None)
 
 import pytest  # noqa: E402
 
