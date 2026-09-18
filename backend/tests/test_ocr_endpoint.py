@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app import ocr as ocr_module
 from app.main import app
+from app.routers import ocr as ocr_router
 
 client = TestClient(app)
 
@@ -192,3 +193,73 @@ def test_tag_ocr_endpoint_returns_blank_fields_on_ocr_failure(monkeypatch):
     for field in ocr_module.TAG_FIELDS:
         assert body[field] == ""
     assert body["tag_match_status"] is None
+
+
+def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_regex_parsing_fails(monkeypatch):
+    # "종류"/"치수"처럼 라벨 매칭(직경/호칭경/강도/강종)에도, 정규식 fallback
+    # 패턴(SD/SHD/UHD+숫자, D+숫자)에도 걸리지 않는 제조사별 표기를 흉내낸다.
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_ocr",
+        lambda image_bytes, filename="x": {"text": "종류: 5호강\n치수: 13mm\n제조사: 현대제철"},
+    )
+    monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ocr_router.llm_tag_fallback,
+        "extract_tag_grade_diameter",
+        lambda image_bytes, filename: ("SD500", "13"),
+    )
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_grade"] == "SD500"
+    assert body["tag_diameter"] == "13"
+    assert body["tag_match_status"] == "matched"
+
+
+def test_tag_ocr_endpoint_skips_llm_vision_fallback_when_regex_parsing_succeeds(monkeypatch):
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_ocr",
+        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD500\n"},
+    )
+    monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("regex parsing already succeeded — LLM fallback should not be called")
+
+    monkeypatch.setattr(ocr_router.llm_tag_fallback, "extract_tag_grade_diameter", fail_if_called)
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    assert response.json()["tag_grade"] == "SD500"
+
+
+def test_tag_ocr_endpoint_skips_llm_vision_fallback_when_api_key_missing(monkeypatch):
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_ocr",
+        lambda image_bytes, filename="x": {"text": "종류: 5호강\n치수: 13mm\n제조사: 현대제철"},
+    )
+    monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "")
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("ANTHROPIC_API_KEY unset — LLM fallback should not be called")
+
+    monkeypatch.setattr(ocr_router.llm_tag_fallback, "extract_tag_grade_diameter", fail_if_called)
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_grade"] == ""
+    assert body["tag_diameter"] == ""

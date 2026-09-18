@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
-from .. import ocr, report_parser, spec_grade
+from .. import config, llm_tag_fallback, ocr, report_parser, spec_grade
 from ..auth import verify_password
 
 router = APIRouter(dependencies=[Depends(verify_password)])
@@ -70,6 +70,14 @@ async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(N
             fields["tag_diameter"],
             text[:500],
         )
+        if config.ANTHROPIC_API_KEY:
+            llm_grade, llm_diameter = llm_tag_fallback.extract_tag_grade_diameter(
+                image_bytes, file.filename or "tag.jpg"
+            )
+            if not fields["tag_grade"] and llm_grade:
+                fields["tag_grade"] = llm_grade
+            if not fields["tag_diameter"] and llm_diameter:
+                fields["tag_diameter"] = llm_diameter
     tag_match_status = None
     if spec:
         tag_match_status = spec_grade.match_tag_to_spec(
