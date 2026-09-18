@@ -21,6 +21,7 @@ const TAG_FIELD_DEFS = [
   ['tag_location', '택 부재시공위치'],
   ['tag_diameter', '택 직경'],
   ['tag_grade', '택 강도'],
+  ['tag_manufacturer', '택 제조사'],
   ['tag_length', '택 길이'],
   ['tag_quantity', '택 수량'],
   ['tag_shape', '택 가공형상'],
@@ -102,6 +103,11 @@ export default function DetailPage() {
           <p className="banner banner-warning">
             이 규격({invoice.spec})에 해당하는 철근 Tag를 찾지 못했습니다 — 촬영한 택 중 일치하는 것이
             없습니다
+          </p>
+        )}
+        {invoice.tag_manufacturer_match_status === 'mismatched' && (
+          <p className="banner banner-warning">
+            택 제조사({invoice.tag_manufacturer})가 송장 비고({invoice.note})와 다릅니다
           </p>
         )}
         {TAG_FIELD_DEFS.map(([key, label]) => (

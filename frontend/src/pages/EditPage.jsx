@@ -54,6 +54,47 @@ function matchTagToSpec(tagGrade, tagDiameter, spec) {
   return 'mismatched'
 }
 
+// backend app/spec_grade.py의 MANUFACTURER_POOL과 동일하게 유지할 것.
+const MANUFACTURER_POOL = {
+  HS: '현대제철',
+  DK: '동국제강',
+  DH: '대한제강',
+  HK: '한국철강',
+  HY: '환영철강',
+  YK: 'YK스틸',
+  HJ: '한국제강',
+}
+const CORPORATE_MARKERS_PATTERN = /\(주\)|㈜|주식회사|\s+/g
+
+// backend app/spec_grade.py의 normalize_manufacturer와 동일한 로직을 프런트에서도
+// 재계산할 수 있도록 이식한 헬퍼.
+function normalizeManufacturer(value) {
+  if (!value) return null
+  const stripped = value.trim()
+  const code = stripped.toUpperCase()
+  if (MANUFACTURER_POOL[code]) return MANUFACTURER_POOL[code]
+  const cleaned = stripped.replace(CORPORATE_MARKERS_PATTERN, '')
+  if (!cleaned) return null
+  // "제강"/"철강"처럼 여러 풀 항목에 공통으로 들어있는 일반 명사 조각만으로
+  // 특정 업체로 오판정되지 않도록, cleaned가 정식명칭에 포함되는 방향만
+  // 허용한다(정식명칭이 cleaned에 포함되는 방향만 — 반대 방향은 금지).
+  const found = Object.values(MANUFACTURER_POOL).find((name) => cleaned.includes(name))
+  return found || null
+}
+
+function matchManufacturer(tagManufacturer, note) {
+  const normTag = normalizeManufacturer(tagManufacturer)
+  const normNote = normalizeManufacturer(note)
+  if (normTag === null || normNote === null) return null
+  return normTag === normNote ? 'matched' : 'mismatched'
+}
+
+// 배너 표시용 — 저장되는 tag_manufacturer는 정식명칭이지만, 적합 배너에는
+// 코드로 표기하기 위한 정식명칭 → 코드 역변환 테이블.
+const CODE_BY_MANUFACTURER = Object.fromEntries(
+  Object.entries(MANUFACTURER_POOL).map(([code, name]) => [name, code]),
+)
+
 // 촬영한 철근 Tag 여러 장을 자재 목록과 1:1로 대조한다. 각 자재(규격)에
 // 대해 아직 배정되지 않은 택 중 규격이 일치하는 것을 하나 찾아 배정한다.
 // 같은 규격의 택이 여러 장 남더라도(패킹 단위별로 택이 따로 있는 게
@@ -170,9 +211,26 @@ export default function EditPage() {
         let tagFields = {}
         let tagPhotoFile = null
         if (assignment) {
-          const { tag_site_name, tag_location, tag_diameter, tag_grade, tag_length, tag_quantity, tag_shape } =
-            assignment.result
-          tagFields = { tag_site_name, tag_location, tag_diameter, tag_grade, tag_length, tag_quantity, tag_shape }
+          const {
+            tag_site_name,
+            tag_location,
+            tag_diameter,
+            tag_grade,
+            tag_length,
+            tag_quantity,
+            tag_shape,
+            tag_manufacturer,
+          } = assignment.result
+          tagFields = {
+            tag_site_name,
+            tag_location,
+            tag_diameter,
+            tag_grade,
+            tag_length,
+            tag_quantity,
+            tag_shape,
+            tag_manufacturer,
+          }
           tagPhotoFile = assignment.file
         } else if (tagFiles.length > 0) {
           // 택은 촬영했지만 이 규격과 일치하는 게 하나도 없었던 경우 —
@@ -238,10 +296,30 @@ export default function EditPage() {
           ))}
           {tagFiles.length > 0 &&
             (itemAssignments[index] ? (
-              <p className="banner banner-success">
-                일치하는 철근 Tag를 확인했습니다: {itemAssignments[index].result.tag_grade} D
-                {itemAssignments[index].result.tag_diameter}
-              </p>
+              (() => {
+                const tag = itemAssignments[index].result
+                const manufacturerStatus = matchManufacturer(tag.tag_manufacturer, item.note)
+                if (manufacturerStatus === 'matched') {
+                  const code = CODE_BY_MANUFACTURER[tag.tag_manufacturer] || tag.tag_manufacturer
+                  return (
+                    <p className="banner banner-success">
+                      일치하는 철근 Tag을 확인했습니다 : {tag.tag_grade}, D{tag.tag_diameter}, {code}
+                    </p>
+                  )
+                }
+                return (
+                  <>
+                    <p className="banner banner-success">
+                      일치하는 철근 Tag를 확인했습니다: {tag.tag_grade} D{tag.tag_diameter}
+                    </p>
+                    {manufacturerStatus === 'mismatched' && (
+                      <p className="banner banner-warning">
+                        택 제조사({tag.tag_manufacturer})가 송장 비고({item.note})와 다릅니다
+                      </p>
+                    )}
+                  </>
+                )
+              })()
             ) : (
               <p className="banner banner-warning">이 규격에 해당하는 철근 Tag를 찾지 못했습니다</p>
             ))}
@@ -312,6 +390,16 @@ export default function EditPage() {
                       value={result.tag_diameter || ''}
                       onChange={(e) => handleTagFieldEdit(file, 'tag_diameter', e.target.value)}
                       placeholder="예: 10, 13, 16"
+                    />
+                  </div>
+                  <div className="field">
+                    <label>제조사 (자동 인식, 다르면 직접 수정)</label>
+                    <input
+                      className="input"
+                      type="text"
+                      value={result.tag_manufacturer || ''}
+                      onChange={(e) => handleTagFieldEdit(file, 'tag_manufacturer', e.target.value)}
+                      placeholder="예: 현대제철, DK, 동국제강"
                     />
                   </div>
                   {result.tag_grade &&
