@@ -190,3 +190,15 @@ def test_match_manufacturer_matches_when_note_equals_any_candidate():
 
 def test_match_manufacturer_mismatched_when_note_matches_none_of_candidates():
     assert match_manufacturer("동국제강,현대", "대한제강") == "mismatched"
+
+
+def test_match_manufacturer_matches_when_tag_candidate_is_any_note_candidate():
+    # 송장 비고에도 현장 승인 업체가 여러 곳 함께 적힐 수 있다("동국제강,현대"
+    # 등). 택 제조사가 그 여러 후보 중 하나(설령 note 텍스트에서 먼저
+    # 나오지 않는 두 번째 이후 후보)와만 일치해도 matched여야 한다.
+    assert match_manufacturer("동국제강", "동국제강,현대제철") == "matched"
+    assert match_manufacturer("현대제철", "동국제강,현대제철") == "matched"
+
+
+def test_match_manufacturer_mismatched_when_no_candidate_overlaps_either_side():
+    assert match_manufacturer("대한제강", "동국제강,현대제철") == "mismatched"

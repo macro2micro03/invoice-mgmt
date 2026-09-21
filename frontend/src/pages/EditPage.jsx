@@ -115,11 +115,25 @@ function normalizeManufacturer(value) {
   return found.length > 0 ? found[0] : null
 }
 
+// backend app/spec_grade.py의 match_manufacturer와 동일한 로직. note도
+// 택과 마찬가지로 여러 업체가 함께 표기될 수 있어("동국제강,현대" 등)
+// 양쪽 다 normalizeManufacturers로 후보 집합을 구해 교집합 여부로
+// 판정한다 — note의 첫 후보 하나만 보면, 택 제조사가 note의 두 번째
+// 이후 후보와만 일치하는 경우를 놓친다.
 function matchManufacturer(tagManufacturer, note) {
   const tagCandidates = normalizeManufacturers(tagManufacturer)
-  const normNote = normalizeManufacturer(note)
-  if (tagCandidates.length === 0 || normNote === null) return null
-  return tagCandidates.includes(normNote) ? 'matched' : 'mismatched'
+  const noteCandidates = normalizeManufacturers(note)
+  if (tagCandidates.length === 0 || noteCandidates.length === 0) return null
+  return tagCandidates.some((candidate) => noteCandidates.includes(candidate)) ? 'matched' : 'mismatched'
+}
+
+// matchManufacturer가 'matched'를 반환한 경우, 실제로 겹친 후보 하나를
+// 찾아 배너 표시용으로 쓴다(택/note 둘 다 복수 후보일 수 있어 "어느
+// 후보가 일치했는지"는 별도로 구해야 한다).
+function overlappingManufacturer(tagManufacturer, note) {
+  const tagCandidates = normalizeManufacturers(tagManufacturer)
+  const noteCandidates = normalizeManufacturers(note)
+  return tagCandidates.find((candidate) => noteCandidates.includes(candidate)) || null
 }
 
 // 배너 표시용 — 저장되는 tag_manufacturer는 정식명칭이지만, 적합 배너에는
@@ -158,12 +172,12 @@ function explainTagRejection(tagResult, items) {
   if (specMatchedItems.length === 0) {
     return '송장에 이 규격과 일치하는 품목이 없습니다'
   }
-  const itemWithRecognizedNote = specMatchedItems.find((item) => normalizeManufacturer(item.note) !== null)
+  const itemWithRecognizedNote = specMatchedItems.find((item) => normalizeManufacturers(item.note).length > 0)
   if (!itemWithRecognizedNote) {
     return '규격은 일치하지만 송장 비고에서 제조사를 확인할 수 없습니다'
   }
-  const invoiceManufacturer = normalizeManufacturer(itemWithRecognizedNote.note)
-  return `규격은 일치하지만 택 제조사(${tagResult.tag_manufacturer})가 송장 비고(${invoiceManufacturer})와 다릅니다`
+  const invoiceManufacturers = normalizeManufacturers(itemWithRecognizedNote.note).join(',')
+  return `규격은 일치하지만 택 제조사(${tagResult.tag_manufacturer})가 송장 비고(${invoiceManufacturers})와 다릅니다`
 }
 
 // 촬영한 철근 Tag 여러 장을 자재 목록과 1:1로 대조한다. 각 자재(규격)에
@@ -362,7 +376,9 @@ export default function EditPage() {
                 const tag = itemAssignments[index].result
                 const manufacturerStatus = matchManufacturer(tag.tag_manufacturer, item.note)
                 if (manufacturerStatus === 'matched') {
-                  const code = CODE_BY_MANUFACTURER[normalizeManufacturer(item.note)] || tag.tag_manufacturer
+                  const code =
+                    CODE_BY_MANUFACTURER[overlappingManufacturer(tag.tag_manufacturer, item.note)] ||
+                    tag.tag_manufacturer
                   return (
                     <p className="banner banner-success">
                       일치하는 철근 Tag을 확인했습니다 : {tag.tag_grade}, D{tag.tag_diameter}, {code}

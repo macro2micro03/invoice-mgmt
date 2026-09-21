@@ -122,9 +122,12 @@ def normalize_manufacturer(value: str | None) -> str | None:
 
 
 def match_manufacturer(tag_manufacturer: str | None, note: str | None) -> str | None:
-    """택에서 인식된 제강사 후보들 중 하나라도 송장 note와 일치하면 matched."""
+    """택에서 인식된 제강사 후보들과 송장 note에서 인식된 제강사 후보들 중
+    하나라도 겹치면 matched. note도 택과 마찬가지로 여러 업체가 함께
+    표기될 수 있어("동국제강,현대" 등) 양쪽 다 normalize_manufacturers로
+    후보 집합을 구해 교집합 여부로 판정한다."""
     tag_candidates = normalize_manufacturers(tag_manufacturer)
-    norm_note = normalize_manufacturer(note)
-    if not tag_candidates or norm_note is None:
+    note_candidates = normalize_manufacturers(note)
+    if not tag_candidates or not note_candidates:
         return None
-    return "matched" if norm_note in tag_candidates else "mismatched"
+    return "matched" if set(tag_candidates) & set(note_candidates) else "mismatched"
