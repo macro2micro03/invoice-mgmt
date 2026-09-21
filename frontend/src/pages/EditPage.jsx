@@ -140,6 +140,31 @@ function isTagVerifiedAgainstInvoice(tagResult, items) {
   )
 }
 
+// 부적합 배지 옆에 사유를 보여주기 위한 설명 문구. isTagVerifiedAgainstInvoice가
+// false일 때만 호출한다고 가정하고, 어느 단계에서 막혔는지 우선순위대로
+// 확인한다: ①택 인식 자체 실패 → ②규격이 일치하는 품목 없음 → ③규격은
+// 맞는데 제조사가 안 맞음(송장 비고에 제조사 정보 자체가 없는 경우와
+// 다른 제조사가 적힌 경우를 구분).
+function explainTagRejection(tagResult, items) {
+  if (!tagResult.tag_grade || !tagResult.tag_diameter) {
+    return '택에서 강도/직경을 인식하지 못했습니다'
+  }
+  if (!tagResult.tag_manufacturer) {
+    return '택에서 제조사를 인식하지 못했습니다'
+  }
+  const specMatchedItems = items.filter(
+    (item) => matchTagToSpec(tagResult.tag_grade, tagResult.tag_diameter, item.spec) === 'matched',
+  )
+  if (specMatchedItems.length === 0) {
+    return '송장에 이 규격과 일치하는 품목이 없습니다'
+  }
+  const hasRecognizedNote = specMatchedItems.some((item) => normalizeManufacturer(item.note) !== null)
+  if (!hasRecognizedNote) {
+    return '규격은 일치하지만 송장 비고에서 제조사를 확인할 수 없습니다'
+  }
+  return '규격은 일치하지만 택 제조사가 송장 비고와 다릅니다'
+}
+
 // 촬영한 철근 Tag 여러 장을 자재 목록과 1:1로 대조한다. 각 자재(규격)에
 // 대해 아직 배정되지 않은 택 중 규격이 일치하는 것을 하나 찾아 배정한다.
 // 같은 규격의 택이 여러 장 남더라도(패킹 단위별로 택이 따로 있는 게
@@ -407,7 +432,10 @@ export default function EditPage() {
                 (isTagVerifiedAgainstInvoice(result, items) ? (
                   <p className="banner banner-success">적합</p>
                 ) : (
-                  <p className="banner banner-warning">부적합</p>
+                  <p className="banner banner-warning">
+                    부적합
+                    <span className="banner-reason"> — {explainTagRejection(result, items)}</span>
+                  </p>
                 ))}
             </div>
           )

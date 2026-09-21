@@ -204,6 +204,12 @@ body {
   color: var(--color-success-text);
 }
 
+.banner-reason {
+  font-size: 12px;
+  font-weight: normal;
+  opacity: 0.75;
+}
+
 .table-wrap {
   overflow-x: auto;
   border-radius: var(--radius-md);
