@@ -261,3 +261,15 @@ def test_normalize_tag_fields_sd6_not_confused_with_sd600():
     fields = ocr.normalize_tag_fields(text)
     assert fields["tag_grade"] == "SD400"
     assert fields["tag_diameter"] == "6"
+
+
+def test_normalize_tag_fields_manufacturer_stores_all_candidates_as_comma_joined():
+    text = "직경: 13\n강도: SD500\n제조사: 동국제강,현대\n"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_manufacturer"] == "동국제강,현대제철"
+
+
+def test_normalize_tag_fields_manufacturer_recognizes_korean_abbreviation_label():
+    text = "직경: 13\n강도: SD500\n제조사: 현대\n"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_manufacturer"] == "현대제철"

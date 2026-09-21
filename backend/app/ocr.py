@@ -214,6 +214,6 @@ def normalize_tag_fields(raw_text: str) -> dict:
         if not result["tag_diameter"] and fallback_diameter:
             result["tag_diameter"] = fallback_diameter
 
-    result["tag_manufacturer"] = spec_grade.normalize_manufacturer(result["tag_manufacturer"]) or ""
+    result["tag_manufacturer"] = ",".join(spec_grade.normalize_manufacturers(result["tag_manufacturer"]))
 
     return result
