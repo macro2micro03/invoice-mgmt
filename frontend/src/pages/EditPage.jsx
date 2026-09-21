@@ -64,29 +64,62 @@ const MANUFACTURER_POOL = {
   YK: 'YK스틸',
   HJ: '한국제강',
 }
+// backend app/spec_grade.py의 MANUFACTURER_ALIASES와 동일하게 유지할 것.
+const MANUFACTURER_ALIASES = {
+  현대: '현대제철',
+  DONGKUK: '동국제강',
+  HYUNDAI: '현대제철',
+}
 const CORPORATE_MARKERS_PATTERN = /\(주\)|㈜|주식회사|\s+/g
 
-// backend app/spec_grade.py의 normalize_manufacturer와 동일한 로직을 프런트에서도
-// 재계산할 수 있도록 이식한 헬퍼.
+// backend app/spec_grade.py의 normalize_manufacturers와 동일한 로직을 프런트에서도
+// 재계산할 수 있도록 이식한 헬퍼. "동국제강,현대"처럼 후보가 여러 곳 함께
+// 표기된 택을 위해 배열을 반환한다. 두 단계로 찾는다: ① 콤마로 나눈 각
+// 토큰이 코드(또는 법인 표기 제거 후 코드)인 경우 먼저 인정 — LLM이
+// "DK,HS"처럼 답한 경우를 위해. ② 원문 전체(콤마로 나누지 않음)에서
+// 정식명칭/별칭이 부분 문자열로 등장하는지 확인 — 영문 법인 표기
+// ("CO., LTD.")의 콤마와 충돌하지 않도록 분리하지 않는다.
+function normalizeManufacturers(value) {
+  if (!value) return []
+  const found = []
+  for (const token of value.split(',')) {
+    const strippedToken = token.trim()
+    if (!strippedToken) continue
+    const code = strippedToken.toUpperCase()
+    if (MANUFACTURER_POOL[code]) {
+      const name = MANUFACTURER_POOL[code]
+      if (!found.includes(name)) found.push(name)
+      continue
+    }
+    const cleanedToken = strippedToken.replace(CORPORATE_MARKERS_PATTERN, '')
+    const cleanedCode = cleanedToken.toUpperCase()
+    if (MANUFACTURER_POOL[cleanedCode]) {
+      const name = MANUFACTURER_POOL[cleanedCode]
+      if (!found.includes(name)) found.push(name)
+    }
+  }
+
+  const cleanedWhole = value.trim().replace(CORPORATE_MARKERS_PATTERN, '')
+  for (const name of Object.values(MANUFACTURER_POOL)) {
+    if (cleanedWhole.includes(name) && !found.includes(name)) found.push(name)
+  }
+  const cleanedWholeUpper = cleanedWhole.toUpperCase()
+  for (const [alias, name] of Object.entries(MANUFACTURER_ALIASES)) {
+    if (cleanedWholeUpper.includes(alias.toUpperCase()) && !found.includes(name)) found.push(name)
+  }
+  return found
+}
+
 function normalizeManufacturer(value) {
-  if (!value) return null
-  const stripped = value.trim()
-  const code = stripped.toUpperCase()
-  if (MANUFACTURER_POOL[code]) return MANUFACTURER_POOL[code]
-  const cleaned = stripped.replace(CORPORATE_MARKERS_PATTERN, '')
-  if (!cleaned) return null
-  // "제강"/"철강"처럼 여러 풀 항목에 공통으로 들어있는 일반 명사 조각만으로
-  // 특정 업체로 오판정되지 않도록, cleaned가 정식명칭에 포함되는 방향만
-  // 허용한다(정식명칭이 cleaned에 포함되는 방향만 — 반대 방향은 금지).
-  const found = Object.values(MANUFACTURER_POOL).find((name) => cleaned.includes(name))
-  return found || null
+  const found = normalizeManufacturers(value)
+  return found.length > 0 ? found[0] : null
 }
 
 function matchManufacturer(tagManufacturer, note) {
-  const normTag = normalizeManufacturer(tagManufacturer)
+  const tagCandidates = normalizeManufacturers(tagManufacturer)
   const normNote = normalizeManufacturer(note)
-  if (normTag === null || normNote === null) return null
-  return normTag === normNote ? 'matched' : 'mismatched'
+  if (tagCandidates.length === 0 || normNote === null) return null
+  return tagCandidates.includes(normNote) ? 'matched' : 'mismatched'
 }
 
 // 배너 표시용 — 저장되는 tag_manufacturer는 정식명칭이지만, 적합 배너에는
@@ -94,6 +127,18 @@ function matchManufacturer(tagManufacturer, note) {
 const CODE_BY_MANUFACTURER = Object.fromEntries(
   Object.entries(MANUFACTURER_POOL).map(([code, name]) => [name, code]),
 )
+
+// 택의 강도+직경+제조사가 송장 내 자재(품목) 중 하나라도 전부 일치하는지
+// 판정한다. matchTagToSpec/matchManufacturer 둘 다 인식 실패(빈 값) 시
+// null을 반환하므로, 'matched' 비교로 인식 안 된 경우도 자동으로
+// 부적합 처리된다.
+function isTagVerifiedAgainstInvoice(tagResult, items) {
+  return items.some(
+    (item) =>
+      matchTagToSpec(tagResult.tag_grade, tagResult.tag_diameter, item.spec) === 'matched' &&
+      matchManufacturer(tagResult.tag_manufacturer, item.note) === 'matched',
+  )
+}
 
 // 촬영한 철근 Tag 여러 장을 자재 목록과 1:1로 대조한다. 각 자재(규격)에
 // 대해 아직 배정되지 않은 택 중 규격이 일치하는 것을 하나 찾아 배정한다.
@@ -184,15 +229,6 @@ export default function EditPage() {
       const next = new Map(prev)
       next.delete(file)
       return next
-    })
-  }
-
-  // OCR이 강도/직경을 잘못 읽었거나 못 읽었을 때 사용자가 직접 고칠 수 있게 한다.
-  function handleTagFieldEdit(file, key, value) {
-    setTagResultsByFile((prev) => {
-      const current = prev.get(file)
-      if (!current || current === 'loading' || current === 'error') return prev
-      return new Map(prev).set(file, { ...current, [key]: value })
     })
   }
 
@@ -366,51 +402,13 @@ export default function EditPage() {
                 </button>
               </div>
               {result === 'loading' && <p>인식 중...</p>}
-              {result === 'error' && <p className="banner banner-error">인식에 실패했습니다. 강도/직경을 직접 입력해주세요.</p>}
-              {result && result !== 'loading' && result !== 'error' && (
-                <>
-                  {(!result.tag_grade || !result.tag_diameter) && (
-                    <p className="banner banner-warning">강도/직경을 읽지 못했습니다 — 직접 입력해주세요.</p>
-                  )}
-                  <div className="field">
-                    <label>강도 (자동 인식, 다르면 직접 수정)</label>
-                    <input
-                      className="input"
-                      type="text"
-                      value={result.tag_grade || ''}
-                      onChange={(e) => handleTagFieldEdit(file, 'tag_grade', e.target.value)}
-                      placeholder="예: SD400, SD500, SD600"
-                    />
-                  </div>
-                  <div className="field">
-                    <label>직경 (자동 인식, 다르면 직접 수정)</label>
-                    <input
-                      className="input"
-                      type="text"
-                      value={result.tag_diameter || ''}
-                      onChange={(e) => handleTagFieldEdit(file, 'tag_diameter', e.target.value)}
-                      placeholder="예: 10, 13, 16"
-                    />
-                  </div>
-                  <div className="field">
-                    <label>제조사 (자동 인식, 다르면 직접 수정)</label>
-                    <input
-                      className="input"
-                      type="text"
-                      value={result.tag_manufacturer || ''}
-                      onChange={(e) => handleTagFieldEdit(file, 'tag_manufacturer', e.target.value)}
-                      placeholder="예: 현대제철, DK, 동국제강"
-                    />
-                  </div>
-                  {result.tag_grade &&
-                    result.tag_diameter &&
-                    (items.some((item) => matchTagToSpec(result.tag_grade, result.tag_diameter, item.spec) === 'matched') ? (
-                      <p className="banner banner-success">이 규격은 송장에 포함되어 있습니다 — 이상 없습니다.</p>
-                    ) : (
-                      <p className="banner banner-warning">이 규격은 이 송장의 규격 어디에도 없습니다.</p>
-                    ))}
-                </>
-              )}
+              {result === 'error' && <p className="banner banner-error">인식에 실패했습니다.</p>}
+              {result && result !== 'loading' && result !== 'error' &&
+                (isTagVerifiedAgainstInvoice(result, items) ? (
+                  <p className="banner banner-success">적합</p>
+                ) : (
+                  <p className="banner banner-warning">부적합</p>
+                ))}
             </div>
           )
         })}
