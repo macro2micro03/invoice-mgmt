@@ -22,7 +22,7 @@
 
 **범위 밖 (보류):**
 - **원인 C** — 1차 OCR(document-parse)이 완전히 빈 텍스트가 아니라 워터마크 등 쓸모없는 텍스트만 반환했을 때 보조 OCR로 재시도하지 않는 문제. LLM 비전 폴백이 이 경우를 상당 부분 구제하고 있어 이번에는 보류한다.
-- 나머지 5개 업체(대한제강/한국철강/환영철강/YK스틸/한국제강)의 영문 표기 — 아직 실제 택에서 확인되지 않았다. 확인되는 대로 `ENGLISH_MANUFACTURER_ALIASES`에 추가하면 된다(구조상 항목 추가만으로 확장 가능).
+- 나머지 5개 업체(대한제강/한국철강/환영철강/YK스틸/한국제강)의 영문 표기·축약 표기 — 아직 실제 택에서 확인되지 않았다. 확인되는 대로 `MANUFACTURER_ALIASES`에 추가하면 된다(구조상 항목 추가만으로 확장 가능, 단 여러 업체에 공통되는 일반 명사는 등록하지 않는다).
 - 자재 카드(송장 자재 목록 + 택 배정 배너) — 배정 로직(`matchTagsToItems`)과 배정 성공/실패 배너는 강도+직경 기준 그대로 둔다. 다만 배정된 택에 대해 제조사 일치를 표시하는 통합 배너(`"일치하는 철근 Tag을 확인했습니다 : ..."`)는 매칭 로직 확장(원인 D)의 영향을 자동으로 받는다 — 코드 변경은 없지만 동작이 개선된다.
 - 저장 로직(`handleSave`) — 배정된 택의 강도/직경/제조사/현장명 등은 지금처럼 그대로 저장된다.
 
@@ -52,23 +52,29 @@ _DIAMETER_PATTERN = re.compile(rf"(?<![A-Za-z])D({_DIAMETER_ALTERNATION})")
 
 ### `backend/app/spec_grade.py`
 
-영문 별칭 테이블을 추가하고, "택 하나에서 여러 제강사 후보를 모두 인식"하는 함수를 새로 만든다. 기존 `normalize_manufacturer`(단일값)는 이 함수의 얇은 래퍼로 바꿔 로직을 한 곳에만 둔다.
+별칭 테이블(영문 표기 + 흔한 한글 축약 표기)을 추가하고, "택 하나에서 여러 제강사 후보를 모두 인식"하는 함수를 새로 만든다. 기존 `normalize_manufacturer`(단일값)는 이 함수의 얇은 래퍼로 바꿔 로직을 한 곳에만 둔다.
+
+실제 택 텍스트로 설계를 검증하는 과정에서, "동국제강,현대"처럼 **현대제철이 "현대"로 축약**돼 있는 걸 확인했다(정식명칭 "현대제철"이 그대로 나오지 않음). 이건 앞서(원인 D 발견 전) 고친 "제강"/"철강" 같은 일반 명사 오판정 방지 로직과 같은 종류의 문제(정식명칭의 일부만 있는 표기를 인정할지)라서, 별도의 "고유하게 식별되는 축약형만 등록"하는 별칭 테이블로 통합해 해결한다 — 영문 표기와 완전히 같은 방식으로 다룬다.
+
+콤마로 여러 후보가 나열된 입력(`"동국제강,현대"`)을 컴마로 분리해서 처리하면 `"CO., LTD."`처럼 **영문 법인 표기 자체에 콤마가 들어있는 경우**를 잘못 쪼개게 되므로, 문자열을 분리하지 않고 전체 텍스트 안에서 각 업체(정식명칭 또는 별칭)가 등장하는지를 개별적으로 검사하는 방식으로 설계한다.
 
 ```python
-# 실제 택에서 영문으로 확인된 제강사명만 등록 — 아직 확인 안 된 5개 업체는
-# 실제 택을 받는 대로 추가한다. 코드/한글 정식명칭과 마찬가지로 값이 아니라
-# 별도 표기 방식(alias)이므로, 매칭되면 같은 한글 정식명칭으로 정규화된다.
-ENGLISH_MANUFACTURER_ALIASES = {
+# 실제 택에서 확인된 표기만 등록한다 — "현대"는 "현대제철"의 흔한 줄임
+# 표기(택에 "(동국제강,현대)"처럼 나옴), DONGKUK/HYUNDAI는 영문 표기.
+# 아직 확인 안 된 나머지 5개 업체(대한제강/한국철강/환영철강/YK스틸/
+# 한국제강)의 축약형·영문 표기는 실제 택을 받는 대로 추가한다.
+MANUFACTURER_ALIASES = {
+    "현대": "현대제철",
     "DONGKUK": "동국제강",
     "HYUNDAI": "현대제철",
 }
 
 
 def normalize_manufacturers(value: str | None) -> list[str]:
-    """value 안에 등장하는 모든 제강사(코드/한글 정식명칭/영문 별칭)를 정규화해
-    중복 없이 나열한다. 하나도 없으면 빈 리스트. "동국제강,현대"처럼 현장
-    승인 업체가 여러 곳 함께 표기된 택을 위해 존재한다 — 단일 대표값만
-    필요하면 normalize_manufacturer를 쓴다."""
+    """value 안에 등장하는 모든 제강사(코드/한글 정식명칭/별칭)를 정규화해
+    중복 없이 나열한다. "동국제강,현대"처럼 현장 승인 업체가 여러 곳 함께
+    표기된 택을 위해 존재한다 — 단일 대표값만 필요하면 normalize_manufacturer를
+    쓴다. 하나도 없으면 빈 리스트."""
     if not value:
         return []
     stripped = value.strip()
@@ -77,13 +83,15 @@ def normalize_manufacturers(value: str | None) -> list[str]:
     cleaned = _CORPORATE_MARKERS_PATTERN.sub("", stripped)
     if not cleaned:
         return []
+    if cleaned.upper() in MANUFACTURER_POOL:
+        return [MANUFACTURER_POOL[cleaned.upper()]]
     found = []
     for canonical_name in MANUFACTURER_POOL.values():
         if canonical_name in cleaned and canonical_name not in found:
             found.append(canonical_name)
     cleaned_upper = cleaned.upper()
-    for alias, canonical_name in ENGLISH_MANUFACTURER_ALIASES.items():
-        if alias in cleaned_upper and canonical_name not in found:
+    for alias, canonical_name in MANUFACTURER_ALIASES.items():
+        if alias.upper() in cleaned_upper and canonical_name not in found:
             found.append(canonical_name)
     return found
 
@@ -105,6 +113,7 @@ def match_manufacturer(tag_manufacturer: str | None, note: str | None) -> str | 
     return "matched" if norm_note in tag_candidates else "mismatched"
 ```
 
+- `MANUFACTURER_ALIASES`는 "제강"/"철강" 같은 일반 명사를 절대 포함하지 않는다 — 등록되는 건 실제 택에서 확인되고 풀 안에서 유일하게 한 업체만 가리키는 표기(축약형/영문)뿐이다. 새 별칭을 추가할 때도 이 원칙(여러 업체에 공통으로 들어맞지 않는 표기인지)을 지켜야 한다.
 - 시그니처는 그대로이므로(`match_manufacturer`) `crud.py` 호출부는 변경 불필요 — 저장된 `tag_manufacturer` 값에 복수 후보가 콤마로 들어있어도 내부에서 알아서 다시 파싱한다.
 
 ### `backend/app/ocr.py`
@@ -166,17 +175,18 @@ function isTagVerifiedAgainstInvoice(tagResult, items) {
 
 백엔드 `normalizeManufacturer`/`matchManufacturer` JS 포트도 원인 B(영문 별칭)·원인 D(복수 후보)에 맞춰 함께 갱신한다 — 이미 알려진 트레이드오프(풀 목록이 Python/JS 양쪽에 중복 정의됨)를 그대로 유지한다.
 
-기존 `MANUFACTURER_POOL` 바로 다음에 영문 별칭 테이블 추가:
+기존 `MANUFACTURER_POOL` 바로 다음에 별칭 테이블 추가(영문 표기 + 흔한 한글 축약 표기, 백엔드와 동일한 원칙 — "제강"/"철강" 같은 일반 명사는 절대 넣지 않고, 풀 안에서 유일하게 한 업체만 가리키는 표기만 등록):
 
 ```js
-// backend app/spec_grade.py의 ENGLISH_MANUFACTURER_ALIASES와 동일하게 유지할 것.
-const ENGLISH_MANUFACTURER_ALIASES = {
+// backend app/spec_grade.py의 MANUFACTURER_ALIASES와 동일하게 유지할 것.
+const MANUFACTURER_ALIASES = {
+  현대: '현대제철',
   DONGKUK: '동국제강',
   HYUNDAI: '현대제철',
 }
 ```
 
-`normalizeManufacturer`를 `normalizeManufacturers`(복수 후보 배열 반환)로 바꾸고, 기존 `normalizeManufacturer`는 그 위에 얇게 래핑한다:
+`normalizeManufacturer`를 `normalizeManufacturers`(복수 후보 배열 반환)로 바꾸고, 기존 `normalizeManufacturer`는 그 위에 얇게 래핑한다. 콤마로 여러 후보가 나열된 입력을 문자열 분리로 처리하지 않는다 — 영문 법인 표기(`"CO., LTD."`)에도 콤마가 들어있어 잘못 쪼개지기 때문에, 텍스트 전체에서 각 업체(정식명칭/별칭)가 등장하는지를 개별적으로 검사한다:
 
 ```js
 // backend app/spec_grade.py의 normalize_manufacturers와 동일한 로직을 프런트에서도
@@ -189,13 +199,15 @@ function normalizeManufacturers(value) {
   if (MANUFACTURER_POOL[code]) return [MANUFACTURER_POOL[code]]
   const cleaned = stripped.replace(CORPORATE_MARKERS_PATTERN, '')
   if (!cleaned) return []
+  const cleanedCode = cleaned.toUpperCase()
+  if (MANUFACTURER_POOL[cleanedCode]) return [MANUFACTURER_POOL[cleanedCode]]
   const found = []
   for (const name of Object.values(MANUFACTURER_POOL)) {
     if (cleaned.includes(name) && !found.includes(name)) found.push(name)
   }
   const cleanedUpper = cleaned.toUpperCase()
-  for (const [alias, name] of Object.entries(ENGLISH_MANUFACTURER_ALIASES)) {
-    if (cleanedUpper.includes(alias) && !found.includes(name)) found.push(name)
+  for (const [alias, name] of Object.entries(MANUFACTURER_ALIASES)) {
+    if (cleanedUpper.includes(alias.toUpperCase()) && !found.includes(name)) found.push(name)
   }
   return found
 }
