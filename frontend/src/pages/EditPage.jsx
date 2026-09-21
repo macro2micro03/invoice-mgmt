@@ -154,6 +154,19 @@ function isTagVerifiedAgainstInvoice(tagResult, items) {
   )
 }
 
+// 적합 배지 옆에 인식된 정보를 보여주기 위해, isTagVerifiedAgainstInvoice와
+// 동일한 조건으로 실제 일치한 품목을 찾는다(있으면 isTagVerifiedAgainstInvoice도
+// 반드시 true이므로 둘은 항상 같은 결과를 가리킨다).
+function findVerifiedInvoiceItem(tagResult, items) {
+  return (
+    items.find(
+      (item) =>
+        matchTagToSpec(tagResult.tag_grade, tagResult.tag_diameter, item.spec) === 'matched' &&
+        matchManufacturer(tagResult.tag_manufacturer, item.note) === 'matched',
+    ) || null
+  )
+}
+
 // 부적합 배지 옆에 사유를 보여주기 위한 설명 문구. isTagVerifiedAgainstInvoice가
 // false일 때만 호출한다고 가정하고, 어느 단계에서 막혔는지 우선순위대로
 // 확인한다: ①택 인식 자체 실패 → ②규격이 일치하는 품목 없음 → ③규격은
@@ -447,7 +460,22 @@ export default function EditPage() {
               {result === 'error' && <p className="banner banner-error">인식에 실패했습니다.</p>}
               {result && result !== 'loading' && result !== 'error' &&
                 (isTagVerifiedAgainstInvoice(result, items) ? (
-                  <p className="banner banner-success">적합</p>
+                  (() => {
+                    const matchedItem = findVerifiedInvoiceItem(result, items)
+                    const manufacturerCode = matchedItem
+                      ? CODE_BY_MANUFACTURER[overlappingManufacturer(result.tag_manufacturer, matchedItem.note)] ||
+                        result.tag_manufacturer
+                      : result.tag_manufacturer
+                    return (
+                      <p className="banner banner-success">
+                        적합
+                        <span className="banner-reason">
+                          {' '}
+                          — {result.tag_grade}, D{result.tag_diameter}, {manufacturerCode}
+                        </span>
+                      </p>
+                    )
+                  })()
                 ) : (
                   <p className="banner banner-warning">
                     부적합
