@@ -1,4 +1,10 @@
-from app.spec_grade import match_manufacturer, match_tag_to_spec, normalize_manufacturer, parse_spec_grade_diameter
+from app.spec_grade import (
+    match_manufacturer,
+    match_tag_to_spec,
+    normalize_manufacturer,
+    normalize_manufacturers,
+    parse_spec_grade_diameter,
+)
 
 
 def test_parse_spec_grade_diameter_sd_is_sd400():
@@ -124,3 +130,63 @@ def test_match_manufacturer_returns_none_when_note_missing():
 
 def test_match_manufacturer_returns_none_when_note_outside_pool():
     assert match_manufacturer("HS", "이상한업체") is None
+
+
+def test_normalize_manufacturers_returns_multiple_candidates():
+    # "현대"는 "현대제철"의 실제 택에서 확인된 축약 표기다.
+    assert normalize_manufacturers("동국제강,현대") == ["동국제강", "현대제철"]
+
+
+def test_normalize_manufacturers_returns_multiple_codes_comma_separated():
+    # LLM이 "코드나 정식명칭을 콤마로 구분해서" 답할 때의 형태.
+    assert normalize_manufacturers("DK,HS") == ["동국제강", "현대제철"]
+    assert normalize_manufacturers("DK, HS") == ["동국제강", "현대제철"]
+
+
+def test_normalize_manufacturers_single_code_returns_one_item_list():
+    assert normalize_manufacturers("HS") == ["현대제철"]
+
+
+def test_normalize_manufacturers_recognizes_korean_abbreviation():
+    assert normalize_manufacturers("현대") == ["현대제철"]
+
+
+def test_normalize_manufacturers_recognizes_english_alias():
+    assert normalize_manufacturers("DONGKUK STEEL MILL CO., LTD.") == ["동국제강"]
+    assert normalize_manufacturers("STEEL MADE IN KOREA HYUNDAI 인천공장") == ["현대제철"]
+
+
+def test_normalize_manufacturers_does_not_split_english_corporate_suffix_comma():
+    # "CO., LTD."의 콤마 때문에 문자열을 분리하면 안 된다 — 분리했다면
+    # "LTD." 쪽 토큰만 남아 DONGKUK을 못 찾았을 것이다.
+    assert normalize_manufacturers("DONGKUK STEEL MILL CO., LTD.") == ["동국제강"]
+
+
+def test_normalize_manufacturers_outside_pool_returns_empty_list():
+    assert normalize_manufacturers("알수없는업체") == []
+
+
+def test_normalize_manufacturers_empty_or_none_returns_empty_list():
+    assert normalize_manufacturers("") == []
+    assert normalize_manufacturers(None) == []
+
+
+def test_normalize_manufacturers_still_rejects_generic_substring():
+    # 기존에 고친 "제강"/"철강" 오판정 방지가 별칭 로직 추가로 깨지지 않아야 한다.
+    assert normalize_manufacturers("제강") == []
+    assert normalize_manufacturers("철강") == []
+
+
+def test_normalize_manufacturer_single_value_unchanged():
+    assert normalize_manufacturer("HS") == "현대제철"
+    assert normalize_manufacturer("현대") == "현대제철"
+    assert normalize_manufacturer("알수없는업체") is None
+
+
+def test_match_manufacturer_matches_when_note_equals_any_candidate():
+    assert match_manufacturer("동국제강,현대", "현대제철") == "matched"
+    assert match_manufacturer("동국제강,현대", "동국제강") == "matched"
+
+
+def test_match_manufacturer_mismatched_when_note_matches_none_of_candidates():
+    assert match_manufacturer("동국제강,현대", "대한제강") == "mismatched"
