@@ -316,6 +316,39 @@ def test_create_report_accepts_multiple_photo_sets(monkeypatch):
     assert len(sheet._images) == 3
 
 
+def test_create_report_accepts_the_twentieth_photo_set(monkeypatch):
+    # photo_set_1..20이 각각 별도로 선언된 Form/File 필드라 20번째만 실수로
+    # 빠뜨리는 회귀가 생기기 쉽다 — 마지막 슬롯까지 실제로 연결돼 있는지
+    # 엔드투엔드로 확인한다.
+    from io import BytesIO as _BytesIO
+
+    from PIL import Image as _PILImage
+
+    def _photo_bytes():
+        img = _PILImage.new("RGB", (100, 100), (0, 255, 0))
+        buf = _BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    monkeypatch.setattr(
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": _cover_response([("SHD10", 0.544)])
+    )
+
+    response = client.post(
+        "/reports/material-inspection",
+        data=_form_fields(),
+        files=[
+            ("files", ("cover.jpg", b"fake-image-bytes", "image/jpeg")),
+            ("photo_set_20_top", ("s20top.png", _photo_bytes(), "image/png")),
+            ("photo_set_20_bottom", ("s20bottom.png", _photo_bytes(), "image/png")),
+        ],
+    )
+    assert response.status_code == 200
+    workbook = load_workbook(_BytesIO(response.content))
+    sheet = workbook.active
+    assert len(sheet._images) == 2
+
+
 def test_create_report_from_delivery_date_returns_xlsx(monkeypatch):
     from app import excel as excel_module
     from app import pdf as pdf_module

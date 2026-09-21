@@ -50,9 +50,9 @@ with st.form("report_form"):
         "담당감리자 (품질검사 체크리스트)", value=name_defaults.get("checklist_supervisor", "")
     )
 
-    st.subheader("사진대지 (선택, 최대 5세트)")
+    st.subheader("사진대지 (선택, 최대 20세트)")
     photo_sets = []
-    for i in range(1, 6):
+    for i in range(1, 21):
         with st.expander(f"사진 세트 {i}"):
             top = st.file_uploader(f"상단 사진 {i}", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=f"top_{i}")
             bottom = st.file_uploader(f"하단 사진 {i}", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=f"bottom_{i}")

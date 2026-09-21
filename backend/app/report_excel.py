@@ -24,7 +24,7 @@ CHECKLIST_RESULT_ROWS = range(63, 80)
 
 PHOTO_SET_ROW_START = 81
 PHOTO_SET_BLOCK_ROWS = 6
-MAX_PHOTO_SETS = 5
+MAX_PHOTO_SETS = 20
 
 
 def _mark_work_type_checkbox(text: str, work_type: str) -> str:

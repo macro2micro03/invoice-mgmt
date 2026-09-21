@@ -5,7 +5,7 @@ import EmailSendCard from '../components/EmailSendCard.jsx'
 import { createMaterialInspectionReport } from '../api.js'
 import { downloadBlob } from '../downloadBlob.js'
 
-const MAX_PHOTO_SETS = 5
+const MAX_PHOTO_SETS = 20
 
 // 발신자/수신자/시공담당자/담당감리자는 매번 다시 입력하기 번거로우니
 // 최종 입력값을 다음 생성 시 기본값으로 쓸 수 있게 기억해 둔다.
