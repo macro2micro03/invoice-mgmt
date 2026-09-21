@@ -72,18 +72,21 @@ _HANGUL_PATTERN = re.compile(r"[가-힣]")
 
 def _fallback_tag_grade_diameter(text: str) -> tuple[str, str]:
     upper_text = text.upper()
-    prefixed_match = _PREFIXED_SPEC_PATTERN.search(upper_text)
-    if prefixed_match:
+    for prefixed_match in _PREFIXED_SPEC_PATTERN.finditer(upper_text):
         matched_text = prefixed_match.group(0)
         tail = upper_text[prefixed_match.end() : prefixed_match.end() + 2]
         # "SD6"는 유일하게 "SD600"(강도 단독 표기)의 앞부분과 겹친다(직경
         # 값 중 두 자리가 아닌 건 "6"뿐이고, 강도 코드 중에도 "6"으로
         # 시작하는 "600"이 있어서). 바로 뒤에 "00"이 이어지면 직경이 아니라
-        # 강도 단독 표기로 보고 아래 bare-grade 패턴으로 넘긴다.
-        if not (matched_text == "SD6" and tail == "00"):
-            grade, diameter = spec_grade.parse_spec_grade_diameter(matched_text)
-            if grade and diameter:
-                return grade, diameter
+        # 강도 단독 표기로 보고 이 매치는 건너뛰고 다음 매치를 계속 찾는다
+        # — 같은 텍스트 안에 UHD25/SHD13처럼 진짜 매치가 다른 위치(표 셀
+        # 순서가 바뀌어 앞이나 뒤에 올 수 있음)에 있을 수 있으므로 첫
+        # 매치가 제외 대상이라고 곧바로 포기하면 안 된다.
+        if matched_text == "SD6" and tail == "00":
+            continue
+        grade, diameter = spec_grade.parse_spec_grade_diameter(matched_text)
+        if grade and diameter:
+            return grade, diameter
     bare_match = _BARE_GRADE_PATTERN.search(upper_text)
     diameter_match = _DIAMETER_PATTERN.search(upper_text)
     grade = f"SD{bare_match.group(1)}" if bare_match else ""

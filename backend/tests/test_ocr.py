@@ -263,6 +263,16 @@ def test_normalize_tag_fields_sd6_not_confused_with_sd600():
     assert fields["tag_diameter"] == "6"
 
 
+def test_normalize_tag_fields_recovers_diameter_when_sd600_cell_comes_before_real_match():
+    # 실제 운영 사례(철근TAG-추가1.jpg)와 똑같은 내용이지만 표 셀 순서가
+    # 뒤바뀐 경우: 앞쪽의 "184SD600"(SD6+00 제외 대상)에서 곧바로 포기하면
+    # 뒤쪽의 진짜 "UHD25" 매치를 놓친다.
+    text = "184SD600mmEA 수직1UHD252,800"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_grade"] == "SD600"
+    assert fields["tag_diameter"] == "25"
+
+
 def test_normalize_tag_fields_manufacturer_stores_all_candidates_as_comma_joined():
     text = "직경: 13\n강도: SD500\n제조사: 동국제강,현대\n"
     fields = ocr.normalize_tag_fields(text)

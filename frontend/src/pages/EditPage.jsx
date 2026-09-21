@@ -336,7 +336,7 @@ export default function EditPage() {
                 const tag = itemAssignments[index].result
                 const manufacturerStatus = matchManufacturer(tag.tag_manufacturer, item.note)
                 if (manufacturerStatus === 'matched') {
-                  const code = CODE_BY_MANUFACTURER[normalizeManufacturer(tag.tag_manufacturer)] || tag.tag_manufacturer
+                  const code = CODE_BY_MANUFACTURER[normalizeManufacturer(item.note)] || tag.tag_manufacturer
                   return (
                     <p className="banner banner-success">
                       일치하는 철근 Tag을 확인했습니다 : {tag.tag_grade}, D{tag.tag_diameter}, {code}
