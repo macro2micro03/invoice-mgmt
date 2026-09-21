@@ -158,11 +158,12 @@ function explainTagRejection(tagResult, items) {
   if (specMatchedItems.length === 0) {
     return '송장에 이 규격과 일치하는 품목이 없습니다'
   }
-  const hasRecognizedNote = specMatchedItems.some((item) => normalizeManufacturer(item.note) !== null)
-  if (!hasRecognizedNote) {
+  const itemWithRecognizedNote = specMatchedItems.find((item) => normalizeManufacturer(item.note) !== null)
+  if (!itemWithRecognizedNote) {
     return '규격은 일치하지만 송장 비고에서 제조사를 확인할 수 없습니다'
   }
-  return '규격은 일치하지만 택 제조사가 송장 비고와 다릅니다'
+  const invoiceManufacturer = normalizeManufacturer(itemWithRecognizedNote.note)
+  return `규격은 일치하지만 택 제조사(${tagResult.tag_manufacturer})가 송장 비고(${invoiceManufacturer})와 다릅니다`
 }
 
 // 촬영한 철근 Tag 여러 장을 자재 목록과 1:1로 대조한다. 각 자재(규격)에
