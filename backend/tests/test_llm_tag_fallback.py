@@ -123,3 +123,23 @@ def test_extract_tag_fields_returns_blank_when_llm_answers_null(monkeypatch):
     assert grade == ""
     assert diameter == ""
     assert manufacturer == ""
+
+
+def test_extract_tag_fields_returns_multiple_manufacturer_candidates(monkeypatch):
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "test-key")
+    with patch("app.llm_tag_fallback.requests.post") as mock_post:
+        mock_post.return_value = _mock_response(
+            '{"grade": "SD500", "diameter": "13", "manufacturer": "DK,HS"}'
+        )
+        _, _, manufacturer = llm_tag_fallback.extract_tag_fields(b"fake-bytes", "tag.jpg")
+    assert manufacturer == "동국제강,현대제철"
+
+
+def test_extract_tag_fields_accepts_korean_abbreviation_manufacturer(monkeypatch):
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "test-key")
+    with patch("app.llm_tag_fallback.requests.post") as mock_post:
+        mock_post.return_value = _mock_response(
+            '{"grade": "SD500", "diameter": "13", "manufacturer": "현대"}'
+        )
+        _, _, manufacturer = llm_tag_fallback.extract_tag_fields(b"fake-bytes", "tag.jpg")
+    assert manufacturer == "현대제철"

@@ -18,9 +18,9 @@ _PROMPT = (
     "제조사만 다른 설명 없이 JSON으로 답하세요: "
     '{"grade": "SD300/SD400/SD500/SD600 중 하나, 모르면 null", '
     '"diameter": "13처럼 숫자만, 모르면 null", '
-    '"manufacturer": "다음 7개 제강사 중 하나만 — HS(현대제철), DK(동국제강), '
-    'DH(대한제강), HK(한국철강), HY(환영철강), YK(YK스틸), HJ(한국제강). '
-    '코드나 정식명칭 아무거나로 답해도 됩니다. 이 목록에 없거나 모르면 null"}. '
+    '"manufacturer": "다음 7개 제강사 중 택에 표기된 것을 모두 콤마로 구분해서 — '
+    'HS(현대제철), DK(동국제강), DH(대한제강), HK(한국철강), HY(환영철강), YK(YK스틸), '
+    'HJ(한국제강). 코드나 정식명칭 아무거나로 답해도 됩니다. 이 목록에 없거나 모르면 null"}. '
     "확신이 없으면 null로 답하세요."
 )
 
@@ -110,7 +110,7 @@ def _valid_diameter(value) -> str:
 def _valid_manufacturer(value) -> str:
     if not isinstance(value, str):
         return ""
-    return spec_grade.normalize_manufacturer(value) or ""
+    return ",".join(spec_grade.normalize_manufacturers(value))
 
 
 def extract_tag_fields(image_bytes: bytes, filename: str, media_type: str = "image/jpeg") -> tuple[str, str, str]:
