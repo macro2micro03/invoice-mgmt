@@ -224,3 +224,40 @@ def test_normalize_tag_fields_manufacturer_outside_pool_returns_empty_string():
     text = "직경: 13\n강도: SD500\n제조사: 알수없는제강\n"
     fields = ocr.normalize_tag_fields(text)
     assert fields["tag_manufacturer"] == ""
+
+
+def test_normalize_tag_fields_recovers_diameter_when_glued_to_following_digit_cell():
+    # 실제 운영에서 확인된 실패 사례: Upstage가 표 셀을 공백 없이 이어붙여
+    # "UHD25" 바로 뒤에 다음 셀("2,800")의 숫자가 붙어버리면, 예전 정규식은
+    # "값 뒤에 숫자가 더 없어야 한다"는 경계 조건이 깨져 인식에 실패했다.
+    text = "수직1UHD252,800184SD600mmEA"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_grade"] == "SD600"
+    assert fields["tag_diameter"] == "25"
+
+
+def test_normalize_tag_fields_recovers_from_real_production_failure_text():
+    # 실제 Render 운영 로그에 남은 인식 실패 텍스트를 그대로 회귀 테스트로 쓴다.
+    text = (
+        "원산지:국내산 1/1 삼성물산-서소문빌딩(동국제강,현대)18차=1=3구간 지하1층 BW2 "
+        "수직1UHD252,800184SD600mmEA\n\n2,800\n\n2,050 kg\n001\n2026. 09. 15. 오전 9:32"
+    )
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_grade"] == "SD600"
+    assert fields["tag_diameter"] == "25"
+
+
+def test_normalize_tag_fields_grade_recovers_when_preceded_by_digit_cell():
+    # "184SD600"처럼 강도 표기 앞에 다른 셀의 숫자가 바로 붙어도 인식돼야 한다.
+    text = "184SD600mmEA"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_grade"] == "SD600"
+
+
+def test_normalize_tag_fields_sd6_not_confused_with_sd600():
+    # "SD" 뒤에 "6"만 오면 직경 6mm(강도 SD400)로 정상 인식돼야 하고,
+    # 이게 "SD600"(강도 단독 표기)의 앞부분과 혼동되면 안 된다.
+    text = "SD6 X 12m"
+    fields = ocr.normalize_tag_fields(text)
+    assert fields["tag_grade"] == "SD400"
+    assert fields["tag_diameter"] == "6"

@@ -51,12 +51,22 @@ _TAG_LABEL_LOOKAHEAD = "|".join(re.escape(label) for label in _ALL_TAG_LABELS)
 # 서로 다른 항목명을 쓰고, 현장 가공 택은 항목명 자체가 없기도 하다). 라벨 매칭이
 # 실패했을 때 이 표기를 직접 찾아 강도/직경을 복구하는 보조 수단이다.
 
+# 실제 철근 직경은 KS D 3504 표준 호칭경으로 닫힌 집합이다. 표 셀이 공백
+# 없이 붙으면(예: "UHD252,800") "값 뒤에 숫자가 더 없어야 한다"는 가변
+# 길이(\d{1,2}) 방식의 경계 조건이 이웃 셀의 숫자 때문에 깨지므로,
+# "1~2자리 숫자 아무거나"가 아니라 "이 목록 중 하나"로 매칭해 가변 길이
+# 문제 자체를 없앤다(몇 자리를 캡처할지 목록이 이미 정해준다).
+_VALID_DIAMETER_VALUES = ("57", "51", "41", "38", "35", "32", "29", "25", "22", "19", "16", "13", "10", "6")
+_DIAMETER_ALTERNATION = "|".join(_VALID_DIAMETER_VALUES)
+
 # 한글은 파이썬 정규식에서 \w(단어 문자)로 취급되어, "강종SD600"처럼 값 바로
 # 앞에 한글이 붙어있으면 \b가 경계로 인식되지 않아 매칭에 실패한다. 그래서
-# \b 대신 "바로 앞이 영문/숫자가 아님"을 명시하는 lookbehind를 사용한다.
-_PREFIXED_SPEC_PATTERN = re.compile(r"(?<![A-Za-z0-9])(SHD|UHD|SD)(\d{1,2})(?!\d)")
-_BARE_GRADE_PATTERN = re.compile(r"(?<![A-Za-z0-9])SD([456]00)(?!\d)")
-_DIAMETER_PATTERN = re.compile(r"(?<![A-Za-z0-9])D(\d{1,2})(?!\d)")
+# \b 대신 "바로 앞이 영문이 아님"을 명시하는 lookbehind를 쓴다. 표 셀이
+# 공백 없이 붙으면 앞뒤로 숫자가 이어질 수도 있어(예: "184SD600") 숫자는
+# 경계에서 제외하지 않는다(영문만 제외).
+_PREFIXED_SPEC_PATTERN = re.compile(rf"(?<![A-Za-z])(SHD|UHD|SD)({_DIAMETER_ALTERNATION})")
+_BARE_GRADE_PATTERN = re.compile(r"(?<![A-Za-z])SD([456]00)(?!\d)")
+_DIAMETER_PATTERN = re.compile(rf"(?<![A-Za-z])D({_DIAMETER_ALTERNATION})")
 _HANGUL_PATTERN = re.compile(r"[가-힣]")
 
 
@@ -64,9 +74,16 @@ def _fallback_tag_grade_diameter(text: str) -> tuple[str, str]:
     upper_text = text.upper()
     prefixed_match = _PREFIXED_SPEC_PATTERN.search(upper_text)
     if prefixed_match:
-        grade, diameter = spec_grade.parse_spec_grade_diameter(prefixed_match.group(0))
-        if grade and diameter:
-            return grade, diameter
+        matched_text = prefixed_match.group(0)
+        tail = upper_text[prefixed_match.end() : prefixed_match.end() + 2]
+        # "SD6"는 유일하게 "SD600"(강도 단독 표기)의 앞부분과 겹친다(직경
+        # 값 중 두 자리가 아닌 건 "6"뿐이고, 강도 코드 중에도 "6"으로
+        # 시작하는 "600"이 있어서). 바로 뒤에 "00"이 이어지면 직경이 아니라
+        # 강도 단독 표기로 보고 아래 bare-grade 패턴으로 넘긴다.
+        if not (matched_text == "SD6" and tail == "00"):
+            grade, diameter = spec_grade.parse_spec_grade_diameter(matched_text)
+            if grade and diameter:
+                return grade, diameter
     bare_match = _BARE_GRADE_PATTERN.search(upper_text)
     diameter_match = _DIAMETER_PATTERN.search(upper_text)
     grade = f"SD{bare_match.group(1)}" if bare_match else ""
