@@ -152,6 +152,51 @@ def test_tag_ocr_endpoint_falls_back_to_text_ocr_when_document_parse_finds_no_te
     assert body["tag_match_status"] == "matched"
 
 
+def test_tag_ocr_endpoint_falls_back_to_text_ocr_when_document_parse_finds_partial_text(monkeypatch):
+    # 실제 운영 로그에서 확인된 사례: document-parse가 택의 표 구조를 완전히
+    # 놓치고 날짜 도장 텍스트만 인식했다(택 이미지 자체는 정상). 텍스트가
+    # "비어있지는" 않으므로(단지 강도/직경 표를 못 찾았을 뿐) 예전 재시도
+    # 조건("텍스트가 아예 없을 때만")으로는 이 경우를 놓쳤다.
+    monkeypatch.setattr(
+        ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": {"text": "2026. 09. 15. 오전 9:32"}
+    )
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_text_ocr",
+        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD500\n"},
+    )
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_diameter"] == "13"
+    assert body["tag_grade"] == "SD500"
+    assert body["tag_match_status"] == "matched"
+
+
+def test_tag_ocr_endpoint_text_ocr_retry_never_overwrites_field_already_found(monkeypatch):
+    # 1차 인식에서 강도만 찾고 직경을 놓친 경우, 재시도 결과가 강도에 다른
+    # 값을 주더라도 이미 찾은 강도는 덮어쓰지 않는다.
+    monkeypatch.setattr(ocr_module, "call_upstage_ocr", lambda image_bytes, filename="x": {"text": "강도: SD500\n"})
+    monkeypatch.setattr(
+        ocr_module,
+        "call_upstage_text_ocr",
+        lambda image_bytes, filename="x": {"text": "직경: 13\n강도: SD600\n"},
+    )
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_grade"] == "SD500"
+    assert body["tag_diameter"] == "13"
+
+
 def test_tag_ocr_endpoint_does_not_fall_back_when_document_parse_succeeds(monkeypatch):
     monkeypatch.setattr(
         ocr_module,
@@ -205,6 +250,10 @@ def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_regex_parsing_fails(monk
         "call_upstage_ocr",
         lambda image_bytes, filename="x": {"text": "종류: 5호강\n치수: 13mm\n생산업체: 현대제철"},
     )
+    # 강도/직경 라벨이 없어 정규식 fallback 재시도(텍스트 OCR)도 트리거되지만
+    # 여기서도 아무것도 못 찾는다고 흉내내, 이 테스트의 목적(LLM 폴백)만
+    # 검증되게 한다.
+    monkeypatch.setattr(ocr_module, "call_upstage_text_ocr", lambda image_bytes, filename="x": {"elements": []})
     monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(
         ocr_router.llm_tag_fallback,
@@ -255,6 +304,7 @@ def test_tag_ocr_endpoint_skips_llm_vision_fallback_when_api_key_missing(monkeyp
         "call_upstage_ocr",
         lambda image_bytes, filename="x": {"text": "종류: 5호강\n치수: 13mm\n생산업체: 현대제철"},
     )
+    monkeypatch.setattr(ocr_module, "call_upstage_text_ocr", lambda image_bytes, filename="x": {"elements": []})
     monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "")
 
     def fail_if_called(*args, **kwargs):
@@ -281,6 +331,7 @@ def test_tag_ocr_endpoint_never_overwrites_field_already_found_by_regex(monkeypa
         "call_upstage_ocr",
         lambda image_bytes, filename="x": {"text": "직경: 13\n종류: 5호강"},
     )
+    monkeypatch.setattr(ocr_module, "call_upstage_text_ocr", lambda image_bytes, filename="x": {"elements": []})
     monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(
         ocr_router.llm_tag_fallback,

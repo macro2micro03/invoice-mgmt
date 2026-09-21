@@ -47,21 +47,31 @@ async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(N
         return {**{field: "" for field in ocr.TAG_FIELDS}, "tag_match_status": None}
 
     text = ocr.extract_text(raw_response)
-    if not text:
+    fields = ocr.normalize_tag_fields(text)
+    if not fields["tag_grade"] or not fields["tag_diameter"]:
+        # document-parse가 택의 표 구조를 완전히 놓치면 날짜 도장 같은 주변
+        # 텍스트만 건지고 강도/직경 표는 아예 못 읽는 경우가 있다(text가
+        # "비어있지는" 않아서 재시도 조건을 텍스트 존재 여부로만 걸면
+        # 놓친다). 강도나 직경이 비었으면 표 구조와 무관한 일반 텍스트 인식
+        # API로 한 번 더 시도해, 이미 찾은 필드는 그대로 두고 빈 필드만
+        # 채운다.
         logger.warning(
-            "택 이미지에서 텍스트를 전혀 추출하지 못함 (filename=%s, bytes=%d) — 응답 키: %s, elements 개수: %d"
-            " — 일반 텍스트 인식 API로 재시도",
+            "택 이미지에서 강도/직경을 추출하지 못함 (filename=%s, bytes=%d) — 응답 키: %s, elements 개수: %d"
+            " — 일반 텍스트 인식 API로 재시도. 텍스트 미리보기: %r",
             file.filename,
             len(image_bytes),
             list(raw_response.keys()),
             len(raw_response.get("elements", [])),
+            text[:500],
         )
         try:
             fallback_response = ocr.call_upstage_text_ocr(image_bytes, filename=file.filename or "tag.jpg")
-            text = ocr.extract_text(fallback_response)
+            fallback_fields = ocr.normalize_tag_fields(ocr.extract_text(fallback_response))
+            for field_name in ocr.TAG_FIELDS:
+                if not fields[field_name] and fallback_fields[field_name]:
+                    fields[field_name] = fallback_fields[field_name]
         except Exception:
             logger.exception("일반 텍스트 인식 API 호출 실패 (filename=%s)", file.filename)
-    fields = ocr.normalize_tag_fields(text)
     if not fields["tag_grade"] or not fields["tag_diameter"] or not fields["tag_manufacturer"]:
         logger.warning(
             "택에서 강도/직경/제조사 인식 실패 (filename=%s, tag_grade=%r, tag_diameter=%r, tag_manufacturer=%r)"
