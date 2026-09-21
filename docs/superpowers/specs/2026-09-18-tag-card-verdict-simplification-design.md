@@ -56,7 +56,7 @@ _DIAMETER_PATTERN = re.compile(rf"(?<![A-Za-z])D({_DIAMETER_ALTERNATION})")
 
 실제 택 텍스트로 설계를 검증하는 과정에서, "동국제강,현대"처럼 **현대제철이 "현대"로 축약**돼 있는 걸 확인했다(정식명칭 "현대제철"이 그대로 나오지 않음). 이건 앞서(원인 D 발견 전) 고친 "제강"/"철강" 같은 일반 명사 오판정 방지 로직과 같은 종류의 문제(정식명칭의 일부만 있는 표기를 인정할지)라서, 별도의 "고유하게 식별되는 축약형만 등록"하는 별칭 테이블로 통합해 해결한다 — 영문 표기와 완전히 같은 방식으로 다룬다.
 
-콤마로 여러 후보가 나열된 입력(`"동국제강,현대"`)을 컴마로 분리해서 처리하면 `"CO., LTD."`처럼 **영문 법인 표기 자체에 콤마가 들어있는 경우**를 잘못 쪼개게 되므로, 문자열을 분리하지 않고 전체 텍스트 안에서 각 업체(정식명칭 또는 별칭)가 등장하는지를 개별적으로 검사하는 방식으로 설계한다.
+콤마로 여러 후보가 나열된 입력을 처리할 때 문제가 하나 있다: `"CO., LTD."`처럼 **영문 법인 표기 자체에 콤마가 들어있는 경우**, 콤마로 무조건 분리하면 잘못 쪼개진다. 그렇다고 전혀 분리하지 않으면 `"DK,HS"`처럼(LLM이 코드를 콤마로 나열한 경우) 코드 하나하나를 정확히 인식하기 어렵다. 그래서 두 단계로 나눠 처리한다: ① 콤마로 나눈 각 토큰이 "코드"(또는 법인 표기 제거 후 코드)인 경우만 먼저 인정하고, ② 그걸로 못 찾은 나머지는 원문 전체(분리하지 않음)에서 정식명칭/별칭이 부분 문자열로 등장하는지 확인한다 — 이 두 번째 단계가 `"CO., LTD."`의 콤마와도, `"동국제강,현대"`처럼 라벨 없이 붙은 한글 축약형과도 문제없이 맞물린다.
 
 ```python
 # 실제 택에서 확인된 표기만 등록한다 — "현대"는 "현대제철"의 흔한 줄임
@@ -74,24 +74,38 @@ def normalize_manufacturers(value: str | None) -> list[str]:
     """value 안에 등장하는 모든 제강사(코드/한글 정식명칭/별칭)를 정규화해
     중복 없이 나열한다. "동국제강,현대"처럼 현장 승인 업체가 여러 곳 함께
     표기된 택을 위해 존재한다 — 단일 대표값만 필요하면 normalize_manufacturer를
-    쓴다. 하나도 없으면 빈 리스트."""
+    쓴다. 하나도 없으면 빈 리스트.
+
+    두 단계로 찾는다: 1) 콤마로 나눈 각 토큰이 "코드"(또는 법인 표기 제거
+    후 코드)인 경우 — LLM이 "DK,HS"처럼 깔끔하게 답한 경우를 위해. 2) 원문
+    전체(콤마로 나누지 않음)에서 정식명칭/별칭이 부분 문자열로 등장하는지
+    확인 — 영문 법인 표기("CO., LTD.")의 콤마와 충돌하지 않도록, 그리고
+    "현대"처럼 라벨 없이 붙은 축약형을 위해 콤마로 나누지 않는다."""
     if not value:
         return []
-    stripped = value.strip()
-    if stripped.upper() in MANUFACTURER_POOL:
-        return [MANUFACTURER_POOL[stripped.upper()]]
-    cleaned = _CORPORATE_MARKERS_PATTERN.sub("", stripped)
-    if not cleaned:
-        return []
-    if cleaned.upper() in MANUFACTURER_POOL:
-        return [MANUFACTURER_POOL[cleaned.upper()]]
     found = []
+    for token in value.split(","):
+        stripped_token = token.strip()
+        if not stripped_token:
+            continue
+        if stripped_token.upper() in MANUFACTURER_POOL:
+            canonical_name = MANUFACTURER_POOL[stripped_token.upper()]
+            if canonical_name not in found:
+                found.append(canonical_name)
+            continue
+        cleaned_token = _CORPORATE_MARKERS_PATTERN.sub("", stripped_token)
+        if cleaned_token.upper() in MANUFACTURER_POOL:
+            canonical_name = MANUFACTURER_POOL[cleaned_token.upper()]
+            if canonical_name not in found:
+                found.append(canonical_name)
+
+    cleaned_whole = _CORPORATE_MARKERS_PATTERN.sub("", value.strip())
     for canonical_name in MANUFACTURER_POOL.values():
-        if canonical_name in cleaned and canonical_name not in found:
+        if canonical_name in cleaned_whole and canonical_name not in found:
             found.append(canonical_name)
-    cleaned_upper = cleaned.upper()
+    cleaned_whole_upper = cleaned_whole.upper()
     for alias, canonical_name in MANUFACTURER_ALIASES.items():
-        if alias.upper() in cleaned_upper and canonical_name not in found:
+        if alias.upper() in cleaned_whole_upper and canonical_name not in found:
             found.append(canonical_name)
     return found
 
@@ -186,7 +200,7 @@ const MANUFACTURER_ALIASES = {
 }
 ```
 
-`normalizeManufacturer`를 `normalizeManufacturers`(복수 후보 배열 반환)로 바꾸고, 기존 `normalizeManufacturer`는 그 위에 얇게 래핑한다. 콤마로 여러 후보가 나열된 입력을 문자열 분리로 처리하지 않는다 — 영문 법인 표기(`"CO., LTD."`)에도 콤마가 들어있어 잘못 쪼개지기 때문에, 텍스트 전체에서 각 업체(정식명칭/별칭)가 등장하는지를 개별적으로 검사한다:
+`normalizeManufacturer`를 `normalizeManufacturers`(복수 후보 배열 반환)로 바꾸고, 기존 `normalizeManufacturer`는 그 위에 얇게 래핑한다. 백엔드와 동일한 2단계 방식 — ① 콤마로 나눈 각 토큰이 코드인 경우 먼저 인정, ② 원문 전체(분리하지 않음)에서 정식명칭/별칭이 부분 문자열로 등장하는지 확인 — 을 그대로 이식한다:
 
 ```js
 // backend app/spec_grade.py의 normalize_manufacturers와 동일한 로직을 프런트에서도
@@ -194,20 +208,31 @@ const MANUFACTURER_ALIASES = {
 // 표기된 택을 위해 배열을 반환한다.
 function normalizeManufacturers(value) {
   if (!value) return []
-  const stripped = value.trim()
-  const code = stripped.toUpperCase()
-  if (MANUFACTURER_POOL[code]) return [MANUFACTURER_POOL[code]]
-  const cleaned = stripped.replace(CORPORATE_MARKERS_PATTERN, '')
-  if (!cleaned) return []
-  const cleanedCode = cleaned.toUpperCase()
-  if (MANUFACTURER_POOL[cleanedCode]) return [MANUFACTURER_POOL[cleanedCode]]
   const found = []
-  for (const name of Object.values(MANUFACTURER_POOL)) {
-    if (cleaned.includes(name) && !found.includes(name)) found.push(name)
+  for (const token of value.split(',')) {
+    const strippedToken = token.trim()
+    if (!strippedToken) continue
+    const code = strippedToken.toUpperCase()
+    if (MANUFACTURER_POOL[code]) {
+      const name = MANUFACTURER_POOL[code]
+      if (!found.includes(name)) found.push(name)
+      continue
+    }
+    const cleanedToken = strippedToken.replace(CORPORATE_MARKERS_PATTERN, '')
+    const cleanedCode = cleanedToken.toUpperCase()
+    if (MANUFACTURER_POOL[cleanedCode]) {
+      const name = MANUFACTURER_POOL[cleanedCode]
+      if (!found.includes(name)) found.push(name)
+    }
   }
-  const cleanedUpper = cleaned.toUpperCase()
+
+  const cleanedWhole = value.trim().replace(CORPORATE_MARKERS_PATTERN, '')
+  for (const name of Object.values(MANUFACTURER_POOL)) {
+    if (cleanedWhole.includes(name) && !found.includes(name)) found.push(name)
+  }
+  const cleanedWholeUpper = cleanedWhole.toUpperCase()
   for (const [alias, name] of Object.entries(MANUFACTURER_ALIASES)) {
-    if (cleanedUpper.includes(alias.toUpperCase()) && !found.includes(name)) found.push(name)
+    if (cleanedWholeUpper.includes(alias.toUpperCase()) && !found.includes(name)) found.push(name)
   }
   return found
 }
