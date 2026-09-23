@@ -142,6 +142,16 @@ const CODE_BY_MANUFACTURER = Object.fromEntries(
   Object.entries(MANUFACTURER_POOL).map(([code, name]) => [name, code]),
 )
 
+// 택에서 인식된 제조사(콤마로 구분된 정식명칭 후보들)를 배너 표시용 코드
+// 목록으로 바꾼다. 아직 일치하는 송장 품목을 찾지 못한 경우(비교 대상
+// 품목이 없어 overlappingManufacturer를 쓸 수 없음) 택 쪽 후보를 그대로
+// 보여줄 때 쓴다.
+function manufacturerCodesForDisplay(tagManufacturer) {
+  return normalizeManufacturers(tagManufacturer)
+    .map((name) => CODE_BY_MANUFACTURER[name] || name)
+    .join(',')
+}
+
 // 택의 강도+직경+제조사가 송장 내 자재(품목) 중 하나라도 전부 일치하는지
 // 판정한다. matchTagToSpec/matchManufacturer 둘 다 인식 실패(빈 값) 시
 // null을 반환하므로, 'matched' 비교로 인식 안 된 경우도 자동으로
@@ -183,7 +193,8 @@ function explainTagRejection(tagResult, items) {
     (item) => matchTagToSpec(tagResult.tag_grade, tagResult.tag_diameter, item.spec) === 'matched',
   )
   if (specMatchedItems.length === 0) {
-    return '송장에 이 규격과 일치하는 품목이 없습니다'
+    const codes = manufacturerCodesForDisplay(tagResult.tag_manufacturer)
+    return `일치 품목 없음 - ${tagResult.tag_grade}, D${tagResult.tag_diameter}, ${codes}`
   }
   const itemWithRecognizedNote = specMatchedItems.find((item) => normalizeManufacturers(item.note).length > 0)
   if (!itemWithRecognizedNote) {
