@@ -253,6 +253,9 @@ export default function EditPage() {
   // (인덱스 대신) 추가/삭제 순서가 뒤섞여도 결과가 엇갈리지 않게 한다.
   const [tagFiles, setTagFiles] = useState([])
   const [tagResultsByFile, setTagResultsByFile] = useState(new Map())
+  // 'error' 상태는 tagResultsByFile 안에서 다른 로직(필터 등)이 문자열로
+  // 비교하므로 그대로 두고, 실패 사유는 별도 맵에 보관해 배너에 표시한다.
+  const [tagErrorsByFile, setTagErrorsByFile] = useState(new Map())
   const [saving, setSaving] = useState(false)
 
   function handleCommonChange(key, value) {
@@ -283,6 +286,7 @@ export default function EditPage() {
         setTagResultsByFile((prev) => new Map(prev).set(file, result))
       } catch (err) {
         setTagResultsByFile((prev) => new Map(prev).set(file, 'error'))
+        setTagErrorsByFile((prev) => new Map(prev).set(file, err.message || '알 수 없는 오류'))
       }
     }
   }
@@ -290,6 +294,11 @@ export default function EditPage() {
   function handleRemoveTagFile(file) {
     setTagFiles((prev) => prev.filter((f) => f !== file))
     setTagResultsByFile((prev) => {
+      const next = new Map(prev)
+      next.delete(file)
+      return next
+    })
+    setTagErrorsByFile((prev) => {
       const next = new Map(prev)
       next.delete(file)
       return next
@@ -468,7 +477,9 @@ export default function EditPage() {
                 </button>
               </div>
               {result === 'loading' && <p>인식 중...</p>}
-              {result === 'error' && <p className="banner banner-error">인식에 실패했습니다.</p>}
+              {result === 'error' && (
+                <p className="banner banner-error">인식에 실패했습니다: {tagErrorsByFile.get(file)}</p>
+              )}
               {result && result !== 'loading' && result !== 'error' &&
                 (isTagVerifiedAgainstInvoice(result, items) ? (
                   (() => {

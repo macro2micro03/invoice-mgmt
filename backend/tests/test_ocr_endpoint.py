@@ -41,17 +41,17 @@ def test_ocr_endpoint_returns_normalized_fields_for_free_form_document(monkeypat
     assert body["records"][0]["vendor"] == "대한제강"
 
 
-def test_ocr_endpoint_returns_blank_fields_on_failure(monkeypatch):
+def test_ocr_endpoint_returns_502_on_upstage_failure(monkeypatch):
+    # 조용히 빈 값으로 200 OK를 반환하면, Upstage API 키 만료/쿼터 초과 같은
+    # 실제 운영 장애(403 Forbidden 등)가 "그냥 인식이 안 되는" 것처럼만
+    # 보여 원인을 알 수 없다 — 에러를 명시적으로 반환해야 한다.
     def raise_error(*args, **kwargs):
         raise RuntimeError("network error")
 
     monkeypatch.setattr(ocr_module, "call_upstage_ocr", raise_error)
     response = client.post("/ocr", files={"file": ("test.jpg", b"fake-image-bytes", "image/jpeg")})
-    assert response.status_code == 200
-    body = response.json()
-    assert len(body["records"]) == 1
-    for field in ocr_module.STANDARD_FIELDS:
-        assert body["records"][0][field] == ""
+    assert response.status_code == 502
+    assert "network error" in response.json()["detail"]
 
 
 def test_ocr_endpoint_returns_multiple_records_for_cover_page_document(monkeypatch):
@@ -227,17 +227,14 @@ def test_tag_ocr_endpoint_returns_blank_fields_when_fallback_also_finds_nothing(
         assert body[field] == ""
 
 
-def test_tag_ocr_endpoint_returns_blank_fields_on_ocr_failure(monkeypatch):
+def test_tag_ocr_endpoint_returns_502_on_upstage_failure(monkeypatch):
     def raise_error(*args, **kwargs):
         raise RuntimeError("network error")
 
     monkeypatch.setattr(ocr_module, "call_upstage_ocr", raise_error)
     response = client.post("/ocr/tag", files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")})
-    assert response.status_code == 200
-    body = response.json()
-    for field in ocr_module.TAG_FIELDS:
-        assert body[field] == ""
-    assert body["tag_match_status"] is None
+    assert response.status_code == 502
+    assert "network error" in response.json()["detail"]
 
 
 def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_regex_parsing_fails(monkeypatch):

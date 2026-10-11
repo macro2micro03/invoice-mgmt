@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from .. import config, llm_tag_fallback, ocr, report_parser, spec_grade
 from ..auth import verify_password
@@ -15,9 +15,14 @@ async def run_ocr(file: UploadFile = File(...)):
     image_bytes = await file.read()
     try:
         raw_response = ocr.call_upstage_ocr(image_bytes, filename=file.filename or "invoice.jpg")
-    except Exception:
+    except Exception as error:
         logger.exception("Upstage OCR 호출 실패 (filename=%s, bytes=%d)", file.filename, len(image_bytes))
-        return {"records": [{field: "" for field in ocr.STANDARD_FIELDS}]}
+        # 예전에는 여기서 빈 필드로 200 OK를 반환해, Upstage API 키 만료/쿼터
+        # 초과(403 등) 같은 문제가 생겨도 사용자 화면에는 "그냥 인식이 안 된"
+        # 것처럼만 보이고 원인을 알 길이 없었다(실제 운영에서 발생해 Render
+        # 로그를 직접 뒤져서야 403 Forbidden을 확인했다). 명시적으로 에러를
+        # 반환해 프런트엔드가 이미 갖춘 에러 안내 화면으로 이어지게 한다.
+        raise HTTPException(status_code=502, detail=f"OCR 서비스 호출 실패: {error}") from error
 
     cover_pages = report_parser.find_cover_pages(raw_response)
     if cover_pages:
@@ -43,8 +48,11 @@ async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(N
     image_bytes = await file.read()
     try:
         raw_response = ocr.call_upstage_ocr(image_bytes, filename=file.filename or "tag.jpg")
-    except Exception:
-        return {**{field: "" for field in ocr.TAG_FIELDS}, "tag_match_status": None}
+    except Exception as error:
+        logger.exception(
+            "택 이미지 Upstage OCR 호출 실패 (filename=%s, bytes=%d)", file.filename, len(image_bytes)
+        )
+        raise HTTPException(status_code=502, detail=f"OCR 서비스 호출 실패: {error}") from error
 
     text = ocr.extract_text(raw_response)
     fields = ocr.normalize_tag_fields(text)

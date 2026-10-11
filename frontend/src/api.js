@@ -12,6 +12,17 @@ function handleUnauthorized(response) {
   }
 }
 
+// OCR 실패는 Upstage API 키 만료/쿼터 초과처럼 사용자가 직접 원인을
+// 파악하기 어려운 경우가 많다(실제로 403 Forbidden이 Render 로그에만
+// 남고 화면에는 아무 단서가 없었던 적이 있다). 백엔드가 돌려주는
+// {"detail": "..."} 메시지를 그대로 에러에 실어, 화면에서 바로 원인을
+// 볼 수 있게 한다. 다른 엔드포인트는 이런 진단 필요성이 보고된 적이
+// 없어 일부러 그대로 둔다.
+async function throwWithDetail(response, fallbackMessage) {
+  const body = await response.json().catch(() => null)
+  throw new Error(body?.detail || fallbackMessage)
+}
+
 export async function runOcr(imageFile) {
   const formData = new FormData()
   formData.append('file', imageFile)
@@ -21,7 +32,7 @@ export async function runOcr(imageFile) {
     body: formData,
   })
   handleUnauthorized(response)
-  if (!response.ok) throw new Error('OCR 요청 실패')
+  if (!response.ok) await throwWithDetail(response, 'OCR 요청 실패')
   return response.json()
 }
 
@@ -35,7 +46,7 @@ export async function runTagOcr(imageFile, spec) {
     body: formData,
   })
   handleUnauthorized(response)
-  if (!response.ok) throw new Error('택 인식 요청 실패')
+  if (!response.ok) await throwWithDetail(response, '택 인식 요청 실패')
   return response.json()
 }
 
