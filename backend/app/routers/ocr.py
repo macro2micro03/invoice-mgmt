@@ -46,23 +46,35 @@ async def run_ocr(file: UploadFile = File(...)):
 @router.post("/ocr/tag")
 async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(None)):
     image_bytes = await file.read()
+    upstage_error: Exception | None = None
+    text = ""
     try:
         raw_response = ocr.call_upstage_ocr(image_bytes, filename=file.filename or "tag.jpg")
+        text = ocr.extract_text(raw_response)
+        fields = ocr.normalize_tag_fields(text)
     except Exception as error:
+        # Upstage 호출 자체가 실패하면(403 계정/쿼터 문제 등) 바로 포기하지
+        # 않는다 — 일반 텍스트 인식 재시도는 같은 Upstage 계정을 쓰므로
+        # 똑같이 실패할 뿐이라 건너뛰지만, 아래의 Claude 비전 폴백은 사진
+        # 원본을 직접 분석하는 별도 업체(Anthropic) API라 Upstage가 막혀
+        # 있어도 작동할 수 있다. Claude마저 아무것도 못 찾으면 그때 이
+        # 원래 에러를 명확히 알린다(조용히 빈 값으로 숨기지 않는다).
         logger.exception(
-            "택 이미지 Upstage OCR 호출 실패 (filename=%s, bytes=%d)", file.filename, len(image_bytes)
+            "택 이미지 Upstage OCR 호출 실패 (filename=%s, bytes=%d) — Claude 비전 폴백으로 계속 시도",
+            file.filename,
+            len(image_bytes),
         )
-        raise HTTPException(status_code=502, detail=f"OCR 서비스 호출 실패: {error}") from error
+        upstage_error = error
+        fields = {field: "" for field in ocr.TAG_FIELDS}
 
-    text = ocr.extract_text(raw_response)
-    fields = ocr.normalize_tag_fields(text)
-    if not fields["tag_grade"] or not fields["tag_diameter"]:
+    if upstage_error is None and (not fields["tag_grade"] or not fields["tag_diameter"]):
         # document-parse가 택의 표 구조를 완전히 놓치면 날짜 도장 같은 주변
         # 텍스트만 건지고 강도/직경 표는 아예 못 읽는 경우가 있다(text가
         # "비어있지는" 않아서 재시도 조건을 텍스트 존재 여부로만 걸면
         # 놓친다). 강도나 직경이 비었으면 표 구조와 무관한 일반 텍스트 인식
         # API로 한 번 더 시도해, 이미 찾은 필드는 그대로 두고 빈 필드만
-        # 채운다.
+        # 채운다. (Upstage 호출 자체가 실패한 경우는 여기로 오지 않는다 —
+        # 같은 계정으로 또 호출해봐야 똑같이 실패할 뿐이다.)
         logger.warning(
             "택 이미지에서 강도/직경을 추출하지 못함 (filename=%s, bytes=%d) — 응답 키: %s, elements 개수: %d"
             " — 일반 텍스트 인식 API로 재시도. 텍스트 미리보기: %r",
@@ -105,6 +117,18 @@ async def run_tag_ocr(file: UploadFile = File(...), spec: Optional[str] = Form(N
                 fields["tag_diameter"] = llm_diameter
             if not fields["tag_manufacturer"] and llm_manufacturer:
                 fields["tag_manufacturer"] = llm_manufacturer
+
+    if (
+        upstage_error is not None
+        and not fields["tag_grade"]
+        and not fields["tag_diameter"]
+        and not fields["tag_manufacturer"]
+    ):
+        # Upstage도 실패했고 Claude 비전도(시도했다면) 아무것도 복구하지
+        # 못했다 — 더 시도할 수단이 없으니 조용히 빈 값을 돌려주지 않고
+        # 원래 Upstage 에러를 명확히 알린다.
+        raise HTTPException(status_code=502, detail=f"OCR 서비스 호출 실패: {upstage_error}") from upstage_error
+
     tag_match_status = None
     if spec:
         tag_match_status = spec_grade.match_tag_to_spec(

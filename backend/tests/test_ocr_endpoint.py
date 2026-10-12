@@ -237,6 +237,77 @@ def test_tag_ocr_endpoint_returns_502_on_upstage_failure(monkeypatch):
     assert "network error" in response.json()["detail"]
 
 
+def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_upstage_call_itself_fails(monkeypatch):
+    # Upstage 호출 자체가 실패해도(예: 계정/쿼터 문제로 403) 바로 포기하지
+    # 않고, 사진 원본을 직접 분석하는 Claude 비전 폴백(별도 업체 API라
+    # Upstage 장애와 무관하게 동작 가능)에게 기회를 줘야 한다.
+    def raise_error(*args, **kwargs):
+        raise RuntimeError("403 Forbidden")
+
+    monkeypatch.setattr(ocr_module, "call_upstage_ocr", raise_error)
+    monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ocr_router.llm_tag_fallback,
+        "extract_tag_fields",
+        lambda image_bytes, filename, media_type: ("SD500", "13", "현대제철"),
+    )
+    response = client.post(
+        "/ocr/tag",
+        data={"spec": "SHD13"},
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tag_grade"] == "SD500"
+    assert body["tag_diameter"] == "13"
+    assert body["tag_manufacturer"] == "현대제철"
+    assert body["tag_match_status"] == "matched"
+
+
+def test_tag_ocr_endpoint_does_not_retry_text_ocr_when_upstage_call_itself_fails(monkeypatch):
+    # 일반 텍스트 인식 API도 같은 Upstage 계정을 쓰므로, document-parse
+    # 호출 자체가 실패했을 때 또 호출해봐야 똑같이 실패할 뿐이다 —
+    # 의미 없는 재시도를 건너뛰고 곧바로 Claude 비전 폴백으로 가야 한다.
+    def raise_error(*args, **kwargs):
+        raise RuntimeError("403 Forbidden")
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("Upstage 계정 문제로 1차 호출이 실패했으면 같은 계정의 텍스트 OCR도 건너뛰어야 한다")
+
+    monkeypatch.setattr(ocr_module, "call_upstage_ocr", raise_error)
+    monkeypatch.setattr(ocr_module, "call_upstage_text_ocr", fail_if_called)
+    monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ocr_router.llm_tag_fallback,
+        "extract_tag_fields",
+        lambda image_bytes, filename, media_type: ("SD500", "13", "현대제철"),
+    )
+    response = client.post(
+        "/ocr/tag",
+        files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 200
+
+
+def test_tag_ocr_endpoint_returns_502_when_upstage_fails_and_llm_fallback_also_finds_nothing(monkeypatch):
+    # Upstage도 실패하고 Claude 비전도 아무것도 못 찾으면, 진짜 복구
+    # 수단이 없는 상태이니 원래 Upstage 에러를 그대로 보여줘야 한다 —
+    # 조용히 빈 값(200)으로 숨기면 안 된다.
+    def raise_error(*args, **kwargs):
+        raise RuntimeError("403 Forbidden")
+
+    monkeypatch.setattr(ocr_module, "call_upstage_ocr", raise_error)
+    monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ocr_router.llm_tag_fallback,
+        "extract_tag_fields",
+        lambda image_bytes, filename, media_type: ("", "", ""),
+    )
+    response = client.post("/ocr/tag", files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")})
+    assert response.status_code == 502
+    assert "403 Forbidden" in response.json()["detail"]
+
+
 def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_regex_parsing_fails(monkeypatch):
     # "종류"/"치수"처럼 라벨 매칭(직경/호칭경/강도/강종/제조사/제강사)에도,
     # 정규식 fallback 패턴(SD/SHD/UHD+숫자, D+숫자)에도 걸리지 않는 제조사별
