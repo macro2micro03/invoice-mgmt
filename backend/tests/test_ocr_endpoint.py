@@ -292,20 +292,25 @@ def test_tag_ocr_endpoint_does_not_retry_text_ocr_when_upstage_call_itself_fails
 def test_tag_ocr_endpoint_returns_502_when_upstage_fails_and_llm_fallback_also_finds_nothing(monkeypatch):
     # Upstage도 실패하고 Claude 비전도 아무것도 못 찾으면, 진짜 복구
     # 수단이 없는 상태이니 원래 Upstage 에러를 그대로 보여줘야 한다 —
-    # 조용히 빈 값(200)으로 숨기면 안 된다.
+    # 조용히 빈 값(200)으로 숨기면 안 된다. 겉보기 결과(502)만 확인하면
+    # Claude 폴백을 아예 시도하지 않고 곧바로 실패하는 (예전) 동작과
+    # 구분이 안 되므로, 실제로 호출됐는지 자체를 직접 검증한다.
     def raise_error(*args, **kwargs):
         raise RuntimeError("403 Forbidden")
 
+    calls = []
+
+    def fake_extract_tag_fields(image_bytes, filename, media_type):
+        calls.append((filename, media_type))
+        return ("", "", "")
+
     monkeypatch.setattr(ocr_module, "call_upstage_ocr", raise_error)
     monkeypatch.setattr(ocr_router.config, "ANTHROPIC_API_KEY", "test-key")
-    monkeypatch.setattr(
-        ocr_router.llm_tag_fallback,
-        "extract_tag_fields",
-        lambda image_bytes, filename, media_type: ("", "", ""),
-    )
+    monkeypatch.setattr(ocr_router.llm_tag_fallback, "extract_tag_fields", fake_extract_tag_fields)
     response = client.post("/ocr/tag", files={"file": ("tag.jpg", b"fake-image-bytes", "image/jpeg")})
     assert response.status_code == 502
     assert "403 Forbidden" in response.json()["detail"]
+    assert len(calls) == 1
 
 
 def test_tag_ocr_endpoint_falls_back_to_llm_vision_when_regex_parsing_fails(monkeypatch):
